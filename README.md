@@ -1,33 +1,18 @@
-# `landarea_Hollinger` (10 000 BC – 2025 AD)
+# Hollinger
 
-Dynamic global terrestrial land-area and cryosphere dataset at **5 arc-minutes** (`4320 × 2160`, WGS84 Equirectangular) in pure **Node.js**, replacing static HYDE `land_area` across `218` keyframes (`-10000` to `-100` in 100-year steps, then HYDE's `0`–`2025` schedule).
+<div align = "center">
+<img src = "https://i.postimg.cc/3ND2B1zL/crd-coat-of-arms-logo.png" height = "64">
+<br>
 
-## Signed `float32` Encoding (`km²` per cell)
+[Figure 1 about here.]
+  
+<br>
+<div align = "center">
+  Figure 1. Global land surface change and deglaciation from 10000BC-2025AD at annual resolution.
+</div>
+<br>
 
-Strict precedence: **Land > Glaciated > Sea**.
-
-- **Positive (`> 0,0`)**: Ice-free terrestrial land area in `km²`, bounded by exact WGS84 ellipsoidal cell area $A_{\text{wgs84}}(\phi)$.
-- **Negative (`< 0,0`)**: Glaciated area in `-km²`, covering grounded ice sheets, mountain glaciers, and **permanent year-round floating ice shelves** (Ross, Ronne–Filchner, Amery, Larsen, Fimbul, Getz).
-- **Zero (`0,0`)**: Ocean, seasonal sea ice, natural lakes, and active impounded reservoirs.
-- **Year Convention**: Signed integer years in NetCDF and GeoPNG filenames (`land_area_-10000.png` … `land_area_0.png` … `land_area_2025.png`), where `0` represents `1 AD` (matching HYDE) and displays as `1 AD` in the animation.
-
-## Usage
-
-Run from `histmap/1.data_raw/landarea_Hollinger/`:
-
-```bash
-npm run pipeline                                             # Full A-G build
-node scripts/run_pipeline.js --only=E,F                      # Run specific steps
-node scripts/G_render_animation.js --preview-years -10000,-6000,0,1950,2025   # Fast 4K preview PNGs
-npm run render                                               # Full 12 026-frame Equal Earth QBAM MP4 (60/30 FPS)
-```
-
-All configuration is scoped strictly to `config/`:
-- `config/model_config.json5` — Grid, timesteps, signed thresholds, GIA/hydrography parameters.
-- `config/source_manifest.json5` — Upstream authoritative URLs and citations.
-- `config/reclamation_registry.json5` — Historical land reclamation & coastal-change events.
-- `config/paleolake_registry.json5` — Proglacial & endorheic dynamic lake curves.
-- `config/render_config.json5` — Utilitarian 4K Equal Earth QBAM palette, Arial `48 pt` label, legend, and dual-FPS (`60`/`30`) settings.
+## Sources
 
 1. OpenStreetMap Contributors. *Land Polygons (Split, WGS84)*. FOSSGIS e.V., 2025, <https://osmdata.openstreetmap.de/data/land-polygons.html>.
 2. NOAA National Centers for Environmental Information. *ETOPO 2022 15 Arc-Second Global Relief Model*. NOAA NCEI, 2022, <https://doi.org/10.25921/fd45-gt74>.
