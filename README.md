@@ -25,7 +25,7 @@ As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), H
 
 All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular).
 
-- landarea_Hollinger.nc - Contains annual estimations of land, glacial coverage, and sea/lakes in km^2 terms.
+- `landarea_Hollinger.nc` - Contains annual estimations of land, glacial coverage, and sea/lakes in km^2 terms.
   - Order of precedence: land area > glaciers > sea/lakes
   - Land area is positive, glaciers are negative (abs. value conversion), and sea/lakes have a float value of 0.
 
