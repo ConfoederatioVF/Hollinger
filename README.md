@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/9a571209-1e1f-4ce8-a58c-b1dc5a552737
 - Dataview: https://dataview.confoederatio.org/
 - <ins>Download:</ins>
 - - Stadestér (Cities, part of Velkscala) | [Github](https://github.com/ConfoederatioVF/Stadester) | [Projects (1.1)](https://projects.confoederatio.org/c/Stadester)
-- - Velkscala (Demographics) | [Github](https://github.com/ConfoederatioVF/Velkscala) | [Datavault (1.0)](https://datavault.confoederatio.org/s/44Pfgt7ya8wE77b)
+- - **Velkscala (Demographics)** | [Github](https://github.com/ConfoederatioVF/Velkscala) | [Datavault (1.0)](https://datavault.confoederatio.org/s/44Pfgt7ya8wE77b) - Land use/cover estimates, including <ins>Hollinger</ins>, are a part of Velkscala.
 - - Eoscala (Economics) | [Github](https://github.com/ConfoederatioVF/Eoscala) | [Datavault (1.5)](https://datavault.confoederatio.org/s/2Kytdej7ABpw4rr)
 - - Atlas (Polities) | [Github](https://github.com/ConfoederatioVF/Atlas) | [Datavault (0.7)](https://datavault.confoederatio.org/s/rPntqXwCxzXg4Bk)
 
