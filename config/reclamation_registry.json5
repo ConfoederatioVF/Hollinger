@@ -97,7 +97,7 @@
       action: "reclaimed_from_water",
       start_year: 1603,
       end_year: 1868,
-      source: "Endo (2004) Coastal Reclamation in Tokyo Bay",
+      source: "GSI Japan / Sengupta et al. (2023)",
     },
     {
       id: "jp_osaka_kobe_bay",
@@ -151,7 +151,7 @@
       action: "reclaimed_from_water",
       start_year: 1955,
       end_year: 2020,
-      source: "Wang et al. (2014) / Sengupta et al. (2023)",
+      source: "Sengupta et al. (2023)",
     },
     {
       id: "cn_tianjin_binhai",
@@ -178,7 +178,7 @@
       action: "reclaimed_from_water",
       start_year: 1950,
       end_year: 2015,
-      source: "Wang et al. (2014) Estuarine Coastal & Shelf Science",
+      source: "Sengupta et al. (2023)",
     },
     {
       id: "kr_saemangeum",
