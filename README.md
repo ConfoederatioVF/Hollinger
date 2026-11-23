@@ -32,7 +32,7 @@ As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), H
 
 ## File Structure.
 
-All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular).
+All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular). Only separate indicators are listed, land use estimate categories which coincide either with ALCC or HYDE3.5 are included in the Velkscala repository.
 
 - `landarea_Hollinger.nc` - Contains annual estimations of land, glacial coverage, and sea/lakes in km^2 terms.
   - Order of precedence: land area > glaciers > sea/lakes
