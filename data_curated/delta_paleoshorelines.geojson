@@ -1,0 +1,343 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_bohai_yellow_river", "year": -4000, "note": "Mid-Holocene Bohai transgression (Tan Qixiang; Xue et al. 2004)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.35, 39.80], [118.70, 39.42], [118.00, 39.28], [117.35, 39.25],
+          [116.95, 39.05], [116.85, 38.68], [117.05, 38.28], [117.35, 37.92],
+          [117.85, 37.62], [118.35, 37.32], [118.88, 37.05], [119.45, 37.08],
+          [119.95, 37.22], [120.40, 37.22], [120.40, 39.80], [119.35, 39.80]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_bohai_yellow_river", "year": 0, "note": "1 AD Western Han Bohai coastline matching Herrmann & Tan Qixiang" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.35, 39.80], [118.85, 39.38], [118.22, 39.20], [117.65, 39.14],
+          [117.42, 38.88], [117.48, 38.48], [117.68, 38.12], [118.02, 37.82],
+          [118.42, 37.54], [118.82, 37.28], [119.22, 37.12], [119.72, 37.18],
+          [120.40, 37.22], [120.40, 39.80], [119.35, 39.80]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_bohai_yellow_river", "year": 1500, "note": "1500 AD Ming Bohai coastline (Yellow River flowing south via Jiangsu, no modern Dongying lobe)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.35, 39.80], [118.92, 39.35], [118.38, 39.14], [117.80, 39.04],
+          [117.62, 38.75], [117.68, 38.38], [117.92, 38.06], [118.30, 37.76],
+          [118.68, 37.48], [119.00, 37.25], [119.38, 37.16], [119.85, 37.22],
+          [120.40, 37.22], [120.40, 39.80], [119.35, 39.80]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_bohai_yellow_river", "year": 1900, "note": "1900 AD Late Qing Bohai coastline (nascent post-1855 Yellow River delta, pre-Binhai/Caofeidian/modern Dongying)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.35, 39.80], [119.00, 39.32], [118.55, 39.06], [117.95, 39.02],
+          [117.74, 38.80], [117.72, 38.45], [118.02, 38.18], [118.45, 37.98],
+          [118.88, 37.82], [118.96, 37.65], [118.90, 37.40], [119.22, 37.20],
+          [119.85, 37.22], [120.40, 37.22], [120.40, 39.80], [119.35, 39.80]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_jiangsu_yangtze_shanghai", "year": -4000, "note": "Mid-Holocene Jiangsu & funnel Yangtze estuary (Chen et al. 2008; Tan Qixiang)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.25, 35.15], [119.12, 34.72], [119.35, 34.22], [119.58, 33.70],
+          [119.78, 33.18], [119.98, 32.72], [120.15, 32.35], [119.80, 32.25],
+          [119.45, 32.22], [119.65, 32.02], [120.15, 31.86], [120.55, 31.62],
+          [120.88, 31.30], [121.05, 30.92], [120.95, 30.58], [120.62, 30.32],
+          [120.85, 30.12], [121.45, 30.08], [122.50, 30.08], [122.50, 35.15],
+          [119.25, 35.15]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_jiangsu_yangtze_shanghai", "year": 0, "note": "1 AD Western Han Jiangsu, Yangtze funnel & Hangzhou Bay matching Herrmann map" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.25, 35.15], [119.22, 34.68], [119.55, 34.20], [119.82, 33.70],
+          [120.06, 33.22], [120.28, 32.78], [120.52, 32.36], [120.78, 32.06],
+          [120.38, 32.08], [119.95, 32.16], [119.72, 32.12], [120.08, 31.94],
+          [120.58, 31.76], [120.98, 31.54], [121.28, 31.26], [121.40, 30.98],
+          [121.28, 30.72], [120.94, 30.48], [120.72, 30.26], [121.15, 30.16],
+          [121.65, 30.08], [122.50, 30.08], [122.50, 35.15], [119.25, 35.15]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_jiangsu_yangtze_shanghai", "year": 1500, "note": "1500 AD Ming Jiangsu progradation (Yellow River mouth at Huai'an, nascent Chongming, narrower Pudong)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.25, 35.15], [119.35, 34.65], [119.85, 34.25], [120.20, 33.85],
+          [120.42, 33.35], [120.68, 32.82], [120.98, 32.35], [121.38, 31.98],
+          [120.88, 31.94], [120.42, 31.96], [120.68, 31.78], [121.18, 31.56],
+          [121.52, 31.32], [121.68, 31.05], [121.55, 30.82], [121.18, 30.62],
+          [120.82, 30.30], [121.28, 30.22], [121.75, 30.10], [122.50, 30.08],
+          [122.50, 35.15], [119.25, 35.15]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_jiangsu_yangtze_shanghai", "year": 1900, "note": "1900 AD Late Qing Jiangsu & Yangtze (pre-modern Lingang/Nanhui/Rudong/Lianyungang reclamation)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [119.25, 35.15], [119.50, 34.62], [120.12, 34.30], [120.48, 33.90],
+          [120.66, 33.38], [120.88, 32.85], [121.22, 32.38], [121.72, 31.92],
+          [121.45, 31.84], [121.22, 31.72], [121.55, 31.52], [121.78, 31.26],
+          [121.82, 30.98], [121.62, 30.82], [121.25, 30.66], [120.85, 30.34],
+          [121.35, 30.26], [121.82, 30.12], [122.50, 30.08], [122.50, 35.15],
+          [119.25, 35.15]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_pearl_river_delta", "year": -4000, "note": "Mid-Holocene Paleo-Pearl River bay (Zong et al. 2009)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [112.95, 22.05], [112.98, 22.45], [113.05, 22.82], [113.22, 23.08],
+          [113.52, 23.08], [113.78, 22.92], [113.86, 22.62], [114.05, 22.38],
+          [114.35, 22.15], [114.35, 21.85], [112.95, 21.85], [112.95, 22.05]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_pearl_river_delta", "year": 0, "note": "1 AD Han Pearl River estuary" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [113.08, 22.05], [113.15, 22.42], [113.24, 22.74], [113.42, 22.94],
+          [113.66, 22.88], [113.80, 22.64], [113.92, 22.38], [114.30, 22.12],
+          [114.35, 21.85], [113.08, 21.85], [113.08, 22.05]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_pearl_river_delta", "year": 1500, "note": "1500 AD Ming Pearl River estuary" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [113.22, 22.05], [113.30, 22.36], [113.45, 22.62], [113.60, 22.76],
+          [113.74, 22.62], [113.84, 22.42], [113.98, 22.25], [114.30, 22.08],
+          [114.35, 21.85], [113.22, 21.85], [113.22, 22.05]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "china_pearl_river_delta", "year": 1900, "note": "1900 AD Pre-modern Lingdingyang estuary" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [113.38, 22.05], [113.52, 22.28], [113.62, 22.54], [113.72, 22.62],
+          [113.82, 22.46], [113.94, 22.28], [114.25, 22.08], [114.35, 21.85],
+          [113.38, 21.85], [113.38, 22.05]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "in_rann_of_kutch", "year": -4000, "note": "Mid-Holocene open marine Great & Little Rann of Kutch (Kutch Island separated from mainland)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [67.80, 23.60], [68.25, 24.15], [68.75, 24.48], [69.50, 24.62],
+          [70.40, 24.65], [71.18, 24.55], [71.65, 24.22], [71.75, 23.65],
+          [71.65, 23.08], [71.25, 22.85], [70.65, 22.85], [70.10, 22.70],
+          [69.40, 22.50], [68.70, 22.50], [67.80, 22.50], [67.80, 23.60]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "in_rann_of_kutch", "year": 0, "note": "1 AD Periplus era navigable Great & Little Rann of Kutch (Kutch remains an island)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [67.80, 23.55], [68.30, 24.08], [68.85, 24.42], [69.55, 24.55],
+          [70.35, 24.58], [71.08, 24.48], [71.52, 24.15], [71.62, 23.62],
+          [71.50, 23.12], [71.15, 22.90], [70.60, 22.88], [70.05, 22.72],
+          [69.40, 22.50], [68.70, 22.50], [67.80, 22.50], [67.80, 23.55]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "in_rann_of_kutch", "year": 900, "note": "900 AD shallowing Rann of Kutch" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [67.80, 23.40], [68.40, 23.95], [69.10, 24.28], [69.90, 24.35],
+          [70.65, 24.25], [71.15, 23.90], [71.25, 23.35], [70.85, 22.95],
+          [70.20, 22.80], [69.40, 22.50], [67.80, 22.50], [67.80, 23.40]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "th_chao_phraya_bangkok_sea", "year": -4000, "note": "Mid-Holocene Bangkok Sea embayment past Ayutthaya (Sinsakul 2000; Tanabe et al. 2003)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [99.85, 13.00], [99.88, 13.55], [99.95, 14.08], [100.18, 14.48],
+          [100.52, 14.65], [100.88, 14.52], [101.10, 14.15], [101.15, 13.70],
+          [101.02, 13.30], [100.90, 13.00], [99.85, 13.00]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "th_chao_phraya_bangkok_sea", "year": 0, "note": "1 AD Dvaravati/pre-Dvaravati Chao Phraya bay (~50 km inland near Nonthaburi/Pathum Thani)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [99.95, 13.00], [99.98, 13.45], [100.12, 13.78], [100.42, 14.02],
+          [100.78, 13.98], [101.02, 13.72], [101.00, 13.35], [100.90, 13.00],
+          [99.95, 13.00]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "th_chao_phraya_bangkok_sea", "year": 1500, "note": "1500 AD Ayutthaya-era upper Gulf shoreline" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [100.00, 13.00], [100.08, 13.42], [100.38, 13.62], [100.74, 13.60],
+          [100.95, 13.42], [100.90, 13.00], [100.00, 13.00]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "vn_mekong_delta", "year": -4000, "note": "Mid-Holocene Mekong embayment recessed toward Phnom Penh / Long An; Ca Mau absent (Nguyen et al. 2000; Tamura et al. 2009)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [104.20, 8.20], [104.55, 9.20], [104.88, 9.95], [105.12, 10.48],
+          [105.45, 10.78], [105.88, 10.82], [106.35, 10.65], [106.78, 10.45],
+          [107.25, 10.30], [107.25, 8.20], [104.20, 8.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "vn_mekong_delta", "year": 0, "note": "1 AD Funan/Oc Eo era Mekong delta (lower coastal plain & Ca Mau peninsula submerged)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [104.20, 8.20], [104.60, 9.05], [105.00, 9.65], [105.38, 9.95],
+          [105.85, 10.05], [106.32, 10.12], [106.75, 10.22], [107.25, 10.15],
+          [107.25, 8.20], [104.20, 8.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "vn_mekong_delta", "year": 1500, "note": "1500 AD Mekong delta with slightly recessed Ca Mau tip" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [104.20, 8.20], [104.65, 8.95], [104.95, 9.15], [105.28, 9.22],
+          [105.78, 9.42], [106.35, 9.78], [106.82, 10.08], [107.25, 10.05],
+          [107.25, 8.20], [104.20, 8.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "bd_ganges_brahmaputra", "year": -4000, "note": "Mid-Holocene recessed Sundarbans & Meghna estuary (Goodbred & Kuehl 2000)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [87.80, 21.20], [88.05, 22.05], [88.45, 22.45], [89.05, 22.68],
+          [89.75, 22.78], [90.45, 22.92], [90.98, 23.02], [91.45, 22.78],
+          [91.85, 22.15], [91.95, 21.20], [87.80, 21.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "bd_ganges_brahmaputra", "year": 0, "note": "1 AD Classical Bengal recessed outer Sundarbans & Meghna islands" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [87.80, 21.20], [88.10, 21.85], [88.60, 22.15], [89.25, 22.30],
+          [89.95, 22.42], [90.65, 22.65], [91.15, 22.72], [91.55, 22.48],
+          [91.85, 22.05], [91.95, 21.20], [87.80, 21.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "bd_ganges_brahmaputra", "year": 1500, "note": "1500 AD pre-modern Meghna estuary islands" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [87.80, 21.20], [88.25, 21.65], [88.85, 21.85], [89.55, 21.95],
+          [90.25, 22.10], [90.85, 22.40], [91.32, 22.45], [91.68, 22.18],
+          [91.95, 21.20], [87.80, 21.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "us_mississippi_birdfoot", "year": -4000, "note": "Mid-Holocene pre-Balize Mississippi coast (Frazier 1967; Blum & Roberts 2012)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-90.30, 28.60], [-90.20, 29.20], [-89.90, 29.48], [-89.58, 29.60],
+          [-89.20, 29.52], [-88.75, 29.30], [-88.75, 28.60], [-90.30, 28.60]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "us_mississippi_birdfoot", "year": 0, "note": "1 AD pre-birdfoot Mississippi coast (modern Plaquemines-Balize lobe post-1000 AD)" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-90.15, 28.60], [-90.05, 29.15], [-89.82, 29.42], [-89.52, 29.52],
+          [-89.18, 29.42], [-88.75, 29.25], [-88.75, 28.60], [-90.15, 28.60]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "delta_id": "us_mississippi_birdfoot", "year": 1500, "note": "1500 AD nascent Plaquemines-Balize lobe" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-89.85, 28.60], [-89.78, 29.02], [-89.52, 29.22], [-89.22, 29.24],
+          [-88.85, 29.10], [-88.75, 28.60], [-89.85, 28.60]
+        ]]
+      }
+    }
+  ]
+}

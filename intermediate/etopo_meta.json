@@ -1,0 +1,7 @@
+{
+  "factor_x": 10,
+  "factor_y": 10,
+  "scale_m_per_unit": 0.5,
+  "src_h": 21600,
+  "src_w": 43200
+}

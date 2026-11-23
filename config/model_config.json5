@@ -1,0 +1,91 @@
+{
+  //Core grid specification: WGS84 Equirectangular 5 arc-minute (matching HYDE 3.5)
+  grid: {
+    crs: "EPSG:4326",
+    width: 4320,
+    height: 2160,
+    cell_deg: 0.08333333333333333,
+    lon_min: -180.0,
+    lon_max: 180.0,
+    lat_min: -90.0,
+    lat_max: 90.0,
+    wgs84_semi_major_m: 6378137.0,
+    wgs84_flattening: 0.0033528106647474805,
+    //Sub-pixel factor per 5-arcminute cell for vector rasterisation (20 -> 15" = 400 sub-cells/pixel)
+    vector_supersample: 20,
+    //Minimum positive land area (km2) preserved for tiny sub-pixel islands/atolls
+    min_island_area_km2: 0.001,
+  },
+
+  //Timestep schedule: 218 keyframes (-10000..2025, 100-yr BCE, HYDE schedule from 0..2025)
+  timesteps: {
+    bce_start: -10000,
+    bce_end: -100,
+    bce_step: 100,
+    ce_century_start: 0,
+    ce_century_end: 1700,
+    ce_century_step: 100,
+    ce_decade_start: 1710,
+    ce_decade_end: 1950,
+    ce_decade_step: 10,
+    ce_annual_start: 1951,
+    ce_annual_end: 2025,
+    ce_annual_step: 1,
+  },
+
+  //Signed float32 encoding semantics (strict precedence: Land > Glaciated > Sea)
+  encoding: {
+    precedence: ["land", "glaciated", "sea"],
+    sea_value: 0.0,
+    glaciated_sign: -1.0,
+    land_sign: 1.0,
+    //Include permanent year-round floating ice shelves as negative glaciated area
+    include_permanent_ice_shelves: true,
+    //Seasonal sea ice is never glaciated
+    include_seasonal_sea_ice: false,
+    //ETOPO surface - bed ice thickness threshold (metres) to classify modern polar ice
+    etopo_ice_thickness_threshold_m: 5.0,
+    //Minimum fractional coverage threshold to avoid floating-point noise
+    min_fraction_epsilon: 0.00025,
+    netcdf_compression_level: 4,
+    netcdf_chunk_shape: [1, 216, 432],
+    geopng_prefix: "land_area_",
+    geopng_format: "float32_be_rgba",
+  },
+
+  //Paleo GIA & deglaciation model parameters
+  paleo: {
+    //Reference modern year where GIA anomaly is strictly anchored to 0
+    anchor_year: 2025,
+    //Year above which GIA sea-level / deglaciation anomaly is treated as modern (0)
+    gia_cutoff_year: 1950,
+    //GLAC-1D year 0 ka BP corresponds to 1950 AD (radiocarbon/BP convention)
+    bp_reference_year: 1950,
+    //Minimum absolute GIA shift (m) needed to trigger full ocean flood-fill recomputation
+    gia_flood_threshold_m: 0.15,
+    //Deep ocean seed depth (m) for connected-component marine flood-fill
+    ocean_seed_depth_m: -200.0,
+    //Ice shelf detection threshold in GLAC-1D (HDC - HDCB > threshold over ocean)
+    glac1d_shelf_thickness_m: 5.0,
+    //Sub-pixel resolution of bathymetry grid used for paleo coastal anomaly (60s = 5x5, 30s = 10x10)
+    bathymetry_resolution: "30s",
+  },
+
+  //Hydrography & reservoirs parameters
+  hydrography: {
+    //Minimum HydroLAKES polygon area (km2)
+    min_lake_area_km2: 0.1,
+    //Reservoir pre-dam river channel fraction retained as water before impoundment (0.0 prevents ghost footprints)
+    pre_dam_river_fraction: 0.0,
+    //Fallback completion year for GDW reservoirs missing YEAR_DAM when > 1 km2
+    undated_reservoir_fallback_year: 1965,
+    //Minimum reservoir area (km2) for temporal rollback
+    min_reservoir_area_km2: 0.25,
+  },
+
+  //Parallel worker configuration
+  compute: {
+    max_workers: 16,
+    tile_rows: 180,
+  },
+}

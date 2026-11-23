@@ -1,0 +1,21 @@
+{
+  "name": "land_area_hollinger",
+  "version": "1.0.0",
+  "description": "Dynamic 10000 BC to 2025 AD WGS84 4320x2160 float32 land-area and glaciation model (NetCDF-4, GeoPNG, 4K Equal Earth QBAM MP4).",
+  "private": true,
+  "scripts": {
+    "acquire": "node --max-old-space-size=16384 scripts/A_acquire_sources.js",
+    "anchor": "node --max-old-space-size=16384 scripts/B_build_modern_anchor.js",
+    "paleo": "node --max-old-space-size=16384 scripts/C_build_paleo_gia_ice.js",
+    "overlays": "node --max-old-space-size=16384 scripts/D_build_dynamic_overlays.js",
+    "assemble": "node --max-old-space-size=16384 scripts/E_assemble_outputs.js",
+    "audit": "node --max-old-space-size=16384 scripts/F_audit_optical_qa.js",
+    "render": "node --max-old-space-size=16384 scripts/G_render_animation.js",
+    "pipeline": "node --max-old-space-size=16384 scripts/run_pipeline.js"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "h5wasm": "^0.8.8",
+    "shapefile": "^0.6.6"
+  }
+}

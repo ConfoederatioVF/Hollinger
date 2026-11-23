@@ -1,0 +1,101 @@
+{
+  //Utilitarian 4K Equal Earth QBAM Animation Configuration
+  //Edit this file freely and run:
+  //  node scripts/G_render_animation.js --preview-years -10000,-6000,0,1950,2025
+  //to inspect still frames in renders/previews/ before encoding all 12 026 frames.
+
+  canvas: {
+    width: 3840,
+    height: 2160,
+    //Equal Earth map box margins (px) inside 3840x2160 canvas
+    margin_top: 120,
+    margin_bottom: 100,
+    margin_left: 40,
+    margin_right: 40,
+    //Central meridian (degrees)
+    central_meridian_deg: 0.0,
+    //Bilinear vs nearest sampling when projecting 4320x2160 -> Equal Earth
+    bilinear_sampling: true,
+  },
+
+  //QBAM-inspired utilitarian palette (hex RGB)
+  palette: {
+    //Background outside the Equal Earth globe oval
+    background: "#000000",
+    //Thin utilitarian graticule outline around the Equal Earth globe (set null to disable)
+    globe_border: "#4A5562",
+    globe_border_width_px: 2,
+    //Sea / ocean / lakes / reservoirs / seasonal sea ice (value == 0)
+    sea: "#0E6DC1",
+    //Land (> 0); fractional coastal cells blend sea -> land
+    land_full: "#AEFFB0",
+    land_coastal_blend: true,
+    //Glaciated & permanent year-round floating ice shelves (< 0)
+    glacier_full: "#FFFFE1",
+    glacier_coastal_blend: true,
+  },
+
+  //Top-left year indicator (strictly minimal, Arial 48pt)
+  year_label: {
+    enabled: true,
+    font_family: "Arial",
+    //72 pt at 96 dpi = 96 px (adjust font_size_pt directly to iterate)
+    font_size_pt: 72,
+    dpi: 96,
+    color: "#F2F4F7",
+    x_px: 56,
+    //Vertically centred on the same line as the title (between the frame top and the top of the map)
+    //Internal year 0 represents 1 AD and displays as "1 AD" in the video.
+    //Options: "ad_bc" (10000 BC .. 1 BC, 1 AD .. 2025 AD) or "signed" (-10000 .. -1, 1 .. 2025)
+    display_mode: "ad_bc",
+    display_year_zero_as: "1 AD",
+  },
+
+  //Centred top title, vertically centred between the frame top and the top of the map
+  title: {
+    enabled: true,
+    text: "HOLLINGER // Global Land Surface",
+    color: "#F2F4F7",
+    font_family: "Arial",
+    font_size_pt: 49.5,
+  },
+
+  //Minimal utilitarian colour key (bottom-left outside Equal Earth oval)
+  legend: {
+    enabled: true,
+    x_px: 56,
+    //Distance (px) from the bottom edge of the frame to the bottom of the swatches
+    margin_bottom_px: 56,
+    swatch_width_px: 66,
+    swatch_height_px: 39,
+    item_gap_px: 56,
+    label_gap_px: 18,
+    font_family: "Arial",
+    font_size_pt: 33,
+    text_color: "#D8DEE6",
+    border_color: "#4A5562",
+    items: [
+      { key: "land_full", label: "Land" },
+      { key: "glacier_full", label: "Glaciated/Permanent Ice Shelf" },
+      { key: "sea", label: "Water" },
+    ],
+  },
+
+  //Exact 12 026-frame dual-FPS animation schedule (-10000 .. 2025 inclusive)
+  animation: {
+    start_year: -10000,
+    end_year: 2025,
+    //Year boundary where FPS switches from fps_pre_1ad to fps_from_1ad (internal 0 = 1 AD)
+    fps_switch_year: 0,
+    fps_pre_1ad: 60,
+    fps_from_1ad: 30,
+    //Set true to duplicate frames after 1 AD for constant 60 fps instead of 12 026-frame VFR
+    cfr_60_duplicate_ad: false,
+    output_filename: "land_area_Hollinger_-10000_2025.mp4",
+    video_codec: "libx264",
+    pixel_format: "yuv420p",
+    crf: 18,
+    preset: "medium",
+    workers: 8,
+  },
+}

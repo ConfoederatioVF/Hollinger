@@ -1,0 +1,68 @@
+{
+  //Authoritative open-access upstream geomorphology, cryosphere, GIA & hydrography sources
+  sources: {
+    osm_land_polygons: {
+      url: "https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip",
+      filename: "land-polygons-split-4326.zip",
+      extract_dir: "osm_land_polygons",
+      format: "shapefile_zip",
+      citation: "OpenStreetMap Contributors / FOSSGIS OSMData Land Polygons (EPSG:4326, split).",
+      required: true,
+    },
+    etopo_2022_30s_bed: {
+      url: "https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/30s/30s_bed_elev_netcdf/ETOPO_2022_v1_30s_N90W180_bed.nc",
+      fallback_url: "https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/60s/60s_bed_elev_netcdf/ETOPO_2022_v1_60s_N90W180_bed.nc",
+      filename: "ETOPO_2022_v1_30s_N90W180_bed.nc",
+      format: "netcdf4",
+      citation: "NOAA NCEI (2022), ETOPO 2022 30 Arc-Second Global Relief Model (Bedrock). DOI: 10.25921/fd45-gt74.",
+      required: true,
+    },
+    etopo_2022_30s_surface: {
+      url: "https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/30s/30s_surface_elev_netcdf/ETOPO_2022_v1_30s_N90W180_surface.nc",
+      fallback_url: "https://www.ngdc.noaa.gov/thredds/fileServer/global/ETOPO2022/60s/60s_surface_elev_netcdf/ETOPO_2022_v1_60s_N90W180_surface.nc",
+      filename: "ETOPO_2022_v1_30s_N90W180_surface.nc",
+      format: "netcdf4",
+      citation: "NOAA NCEI (2022), ETOPO 2022 30 Arc-Second Global Relief Model (Ice Surface). DOI: 10.25921/fd45-gt74.",
+      required: true,
+    },
+    glac1d_pmip4: {
+      url: "https://sharebox.lsce.ipsl.fr/index.php/s/yfuUw91ruuJXroC/download?path=%2F&files=TOPicemsk.GLACD26kN9894GE90227A6005GGrBgic.nc",
+      filename: "TOPicemsk.GLACD26kN9894GE90227A6005GGrBgic.nc",
+      format: "netcdf",
+      citation: "Tarasov, L. & Briggs, R. (PMIP4), GLAC-1D Global Deglaciation & Paleotopography (26-0 ka BP, 100-yr intervals).",
+      required: true,
+    },
+    hydrolakes_v10: {
+      url: "https://data.hydrosheds.org/file/hydrolakes/HydroLAKES_polys_v10_shp.zip",
+      filename: "HydroLAKES_polys_v10_shp.zip",
+      extract_dir: "hydrolakes_v10",
+      format: "shapefile_zip",
+      citation: "Messager, M. L. et al. (2016), HydroLAKES v1.0. Nature Communications 7:13603.",
+      required: true,
+    },
+    gdw_v10: {
+      url: "https://ndownloader.figshare.com/files/47913754",
+      filename: "GDW_v1_0_shp.zip",
+      extract_dir: "gdw_v10",
+      format: "shapefile_zip",
+      citation: "Lehner, B. et al. (2024), Global Dam Watch (GDW) Database v1.0. Scientific Data 11:1069. DOI: 10.6084/m9.figshare.25988293.",
+      required: true,
+    },
+    ne_10m_glaciated_areas: {
+      url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_glaciated_areas.zip",
+      filename: "ne_10m_glaciated_areas.zip",
+      extract_dir: "ne_10m_glaciated_areas",
+      format: "shapefile_zip",
+      citation: "Natural Earth 1:10m Glaciated Areas (supplementing ETOPO 2022 polar ice sheets with alpine & peripheral glaciers).",
+      required: true,
+    },
+    ne_10m_antarctic_ice_shelves: {
+      url: "https://naciscdn.org/naturalearth/10m/physical/ne_10m_antarctic_ice_shelves_polys.zip",
+      filename: "ne_10m_antarctic_ice_shelves_polys.zip",
+      extract_dir: "ne_10m_antarctic_ice_shelves",
+      format: "shapefile_zip",
+      citation: "Natural Earth 1:10m Antarctic Ice Shelves (permanent year-round floating ice shelves).",
+      required: true,
+    },
+  },
+}
