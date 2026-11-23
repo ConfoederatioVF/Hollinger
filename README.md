@@ -2,11 +2,10 @@
 
 <div align = "center">
 <img src = "https://i.postimg.cc/3ND2B1zL/crd-coat-of-arms-logo.png" height = "64">
-<br>
+<br><br>
 
-[Figure 1 about here.]
-  
-<br>
+https://github.com/user-attachments/assets/9a571209-1e1f-4ce8-a58c-b1dc5a552737
+
 <div align = "center">
   Figure 1. Global land surface change and deglaciation from 10000BC-2025AD at annual resolution.
 </div>
@@ -16,7 +15,21 @@
 
 </div>
 
-## Sources & Attribution.
+## Abstract.
+
+**Hollinger** is a land cover and land use change dataset from 10000BC-2025AD, meant as a drop-in replacement for HYDE3.5. Because HYDE does not factor in coastline change and small island nations or marginal coastlines, the commissioning of a separate land use estimate dataset was necessary for priors to be as accurate as possible.
+
+As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), Hollinger is a part of the **Naissance World Model**, a digital model of human society from 10000BC-2025AD.
+
+## File Structure.
+
+All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular).
+
+- landarea_Hollinger.nc - Contains annual estimations of land, glacial coverage, and sea/lakes in km^2 terms.
+  - Order of precedence: land area > glaciers > sea/lakes
+  - Land area is positive, glaciers are negative (abs. value conversion), and sea/lakes have a float value of 0.
+
+## Sources/Attribution.
 
 1. OpenStreetMap Contributors. *Land Polygons (Split, WGS84)*. FOSSGIS e.V., 2025, <https://osmdata.openstreetmap.de/data/land-polygons.html>.
 2. NOAA National Centers for Environmental Information. *ETOPO 2022 15 Arc-Second Global Relief Model*. NOAA NCEI, 2022, <https://doi.org/10.25921/fd45-gt74>.
