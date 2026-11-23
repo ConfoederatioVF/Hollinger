@@ -16,7 +16,7 @@
 
 </div>
 
-## Sources.
+## Sources & Attribution.
 
 1. OpenStreetMap Contributors. *Land Polygons (Split, WGS84)*. FOSSGIS e.V., 2025, <https://osmdata.openstreetmap.de/data/land-polygons.html>.
 2. NOAA National Centers for Environmental Information. *ETOPO 2022 15 Arc-Second Global Relief Model*. NOAA NCEI, 2022, <https://doi.org/10.25921/fd45-gt74>.
