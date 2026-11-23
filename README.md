@@ -40,6 +40,9 @@ All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular).
 
 ## Sources/Attribution.
 
+<details>
+  <summary>Land area (Expand to view sources).</summary>
+
 1. OpenStreetMap Contributors. *Land Polygons (Split, WGS84)*. FOSSGIS e.V., 2025, <https://osmdata.openstreetmap.de/data/land-polygons.html>.
 2. NOAA National Centers for Environmental Information. *ETOPO 2022 15 Arc-Second Global Relief Model*. NOAA NCEI, 2022, <https://doi.org/10.25921/fd45-gt74>.
 3. Tarasov, Lev, et al. “A Data-Calibrated Distribution of Deglacial Chronologies for the North American Ice Complex from Glaciological Modeling.” *Earth and Planetary Science Letters*, vol. 315-316, 2012, pp. 30-40, <https://doi.org/10.1016/j.epsl.2011.09.010>.
@@ -110,3 +113,5 @@ All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular).
 68. Panama Canal Authority. *Canal History*. ACP, <https://pancanal.com>.
 69. Klein Goldewijk, Kees, et al. “Anthropogenic Land Use Estimates for the Holocene - HYDE 3.2.” *Earth System Science Data*, vol. 9, no. 2, 2017, pp. 927-953, <https://doi.org/10.5194/essd-9-927-2017>.
 70. Schiavina, Marcello, et al. *GHS-POP R2023A - GHS Population Grid Multitemporal (1975-2030)*. European Commission, Joint Research Centre, 2023, <https://doi.org/10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE>.
+  
+</details>
