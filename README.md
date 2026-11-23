@@ -17,6 +17,15 @@ https://github.com/user-attachments/assets/9a571209-1e1f-4ce8-a58c-b1dc5a552737
 
 ## Abstract.
 
+- E-mail: [vf@confoederatio.org](mailto:vf@confoederatio.org)
+- Collation: [Github](https://github.com/ConfoederatioVF/Collation) | [Projects](https://projects.confoederatio.org/c/Collation)
+- Dataview: https://dataview.confoederatio.org/
+- <ins>Download:</ins>
+- - Stadestér (Cities, part of Velkscala) | [Github](https://github.com/ConfoederatioVF/Stadester) | [Projects (1.1)](https://projects.confoederatio.org/c/Stadester)
+- - Velkscala (Demographics) | [Github](https://github.com/ConfoederatioVF/Velkscala) | [Datavault (1.0)](https://datavault.confoederatio.org/s/44Pfgt7ya8wE77b)
+- - Eoscala (Economics) | [Github](https://github.com/ConfoederatioVF/Eoscala) | [Datavault (1.5)](https://datavault.confoederatio.org/s/2Kytdej7ABpw4rr)
+- - Atlas (Polities) | [Github](https://github.com/ConfoederatioVF/Atlas) | [Datavault (0.7)](https://datavault.confoederatio.org/s/rPntqXwCxzXg4Bk)
+
 **Hollinger** is a land cover and land use change dataset from 10000BC-2025AD, meant as a drop-in replacement for HYDE3.5. Because HYDE does not factor in coastline change and small island nations or marginal coastlines, the commissioning of a separate land use estimate dataset was necessary for priors to be as accurate as possible.
 
 As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), Hollinger is a part of the **Naissance World Model**, a digital model of human society from 10000BC-2025AD.
