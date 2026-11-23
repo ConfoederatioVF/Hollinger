@@ -10,7 +10,7 @@ let NetCDF4Writer = require("../lib/NetCDF4Writer");
 
 /**
  * Step F: Invariant verification, GeoPNG <-> NetCDF-4 round-trip audit, global trajectory CSV,
- * and quantitative + optical comparison of GHS POP 2025 vs HYDE land_area vs land_area_Hollinger.
+ * and quantitative + optical comparison of GHS POP 2025 vs HYDE land_area vs landarea_Hollinger.
  */
 class F_AuditOpticalQA {
   /**
@@ -179,12 +179,12 @@ class F_AuditOpticalQA {
     let cell_area = GeoGridUtils.computeCellAreaByRow(cfg.grid);
     let paths = GeoGridUtils.resolvePaths();
     let years = GeoGridUtils.getTimestepYears(cfg);
-    let nc_path = path.join(paths.base_dir, "land_area_Hollinger.nc");
+    let nc_path = path.join(paths.base_dir, "landarea_Hollinger.nc");
 
     if (!fs.existsSync(paths.diagnostics_dir))
       fs.mkdirSync(paths.diagnostics_dir, { recursive: true });
 
-    console.log("[F_audit] Opening land_area_Hollinger.nc for invariant & round-trip audit ...");
+    console.log("[F_audit] Opening landarea_Hollinger.nc for invariant & round-trip audit ...");
     let nc = await NetCDF4Writer.openRead(nc_path);
     let shape = nc.getShape("land_area");
     let csv_lines = ["year,positive_land_km2,negative_glaciated_km2,positive_cells,negative_cells,sea_cells"];

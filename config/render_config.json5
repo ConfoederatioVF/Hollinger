@@ -91,7 +91,7 @@
     fps_from_1ad: 30,
     //Set true to duplicate frames after 1 AD for constant 60 fps instead of 12 026-frame VFR
     cfr_60_duplicate_ad: false,
-    output_filename: "land_area_Hollinger_-10000_2025.mp4",
+    output_filename: "landarea_Hollinger_-10000_2025.mp4",
     video_codec: "libx264",
     pixel_format: "yuv420p",
     crf: 18,

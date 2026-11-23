@@ -1,4 +1,4 @@
-# `land_area_Hollinger` (10 000 BC – 2025 AD)
+# `landarea_Hollinger` (10 000 BC – 2025 AD)
 
 Dynamic global terrestrial land-area and cryosphere dataset at **5 arc-minutes** (`4320 × 2160`, WGS84 Equirectangular) in pure **Node.js**, replacing static HYDE `land_area` across `218` keyframes (`-10000` to `-100` in 100-year steps, then HYDE's `0`–`2025` schedule).
 
@@ -13,7 +13,7 @@ Strict precedence: **Land > Glaciated > Sea**.
 
 ## Usage
 
-Run from `histmap/1.data_raw/land_area_Hollinger/`:
+Run from `histmap/1.data_raw/landarea_Hollinger/`:
 
 ```bash
 npm run pipeline                                             # Full A-G build

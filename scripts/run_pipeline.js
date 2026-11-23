@@ -9,7 +9,7 @@ let F_AuditOpticalQA = require("./F_audit_optical_qa");
 let G_RenderAnimation = require("./G_render_animation");
 
 /**
- * End-to-end orchestrator for the land_area_Hollinger Node.js pipeline.
+ * End-to-end orchestrator for the landarea_Hollinger Node.js pipeline.
  * Supports selective step execution via --only=A,B,C or --skip=G.
  */
 class HollingerPipeline {

@@ -1,5 +1,5 @@
 {
-  "name": "land_area_hollinger",
+  "name": "landarea_hollinger",
   "version": "1.0.0",
   "description": "Dynamic 10000 BC to 2025 AD WGS84 4320x2160 float32 land-area and glaciation model (NetCDF-4, GeoPNG, 4K Equal Earth QBAM MP4).",
   "private": true,

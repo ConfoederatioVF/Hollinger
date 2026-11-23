@@ -689,7 +689,7 @@ class E_AssembleOutputs {
   }
 
   /**
-   * Executes Step E: generates all 218 GeoPNGs (rasters/land_area_<year>.png) and land_area_Hollinger.nc.
+   * Executes Step E: generates all 218 GeoPNGs (rasters/land_area_<year>.png) and landarea_Hollinger.nc.
    *
    * @returns {Promise<void>}
    */
@@ -730,12 +730,12 @@ class E_AssembleOutputs {
       vos_rsl_curve_m: hcfg.rce_netherlands_vos.transition_rsl_curve_m,
     };
 
-    let nc_path = path.join(paths.base_dir, "land_area_Hollinger.nc");
+    let nc_path = path.join(paths.base_dir, "landarea_Hollinger.nc");
     let prefix = cfg.encoding.geopng_prefix;
     let t0 = Date.now();
     let write_queue = [];
 
-    console.log(`[E_assemble] Writing ${years.length} signed float32 GeoPNGs & land_area_Hollinger.nc ...`);
+    console.log(`[E_assemble] Writing ${years.length} signed float32 GeoPNGs & landarea_Hollinger.nc ...`);
 
     await NetCDF4Writer.writeHollingerNetCDF4(
       nc_path,
@@ -788,7 +788,7 @@ class E_AssembleOutputs {
       await Promise.all(write_queue);
 
     let nc_mb = (fs.statSync(nc_path).size/1e6).toFixed(1);
-    console.log(`[E_assemble] Completed land_area_Hollinger.nc (${nc_mb} MB) & ${years.length} GeoPNGs in ${((Date.now() - t0)/1000).toFixed(1)}s.`);
+    console.log(`[E_assemble] Completed landarea_Hollinger.nc (${nc_mb} MB) & ${years.length} GeoPNGs in ${((Date.now() - t0)/1000).toFixed(1)}s.`);
   }
 }
 
