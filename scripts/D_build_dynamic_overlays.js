@@ -5,8 +5,11 @@ let path = require("node:path");
 
 let shapefile = require("shapefile");
 
+let ArcticHydrologyModel = require("../lib/ArcticHydrologyModel");
 let BasinContourEngine = require("../lib/BasinContourEngine");
+let C_BuildPaleoGiaIce = require("./C_build_paleo_gia_ice");
 let GeoGridUtils = require("../lib/GeoGridUtils");
+let NetCDF4Writer = require("../lib/NetCDF4Writer");
 let ScanlineRasteriser = require("../lib/ScanlineRasteriser");
 
 /**
@@ -589,15 +592,16 @@ class D_BuildDynamicOverlays {
         let y = years[yi];
         if (d.min_year !== undefined && y < d.min_year) continue;
         let bs_raw = BasinContourEngine.evalCurve(d.backstrip_curve_m, y);
-        if (bs_raw < 0.15) continue;
+        if (bs_raw < 0.05) continue;
 
-        let bs_q = Math.round(bs_raw*2.0)/2.0;
+        let bs_q = Math.round(bs_raw*10.0)/10.0;
         let key = bs_q.toFixed(1);
 
         if (!level_cache.has(key)) {
           let flooded_pairs = engine.floodSeededContour(d.bbox, d.sea_seed, bs_q, {
             clean_stipples: Boolean(d.clean_stipples),
             seed_edge_sea: true,
+            smooth_substep: true,
           });
           //Keep only additional marine flooding above modern sea level (0m)
           let added_water = [];
@@ -750,6 +754,276 @@ class D_BuildDynamicOverlays {
   }
 
   /**
+   * Extracts dynamic lagoon footprints (e.g. Garabogazköl) from the HydroLAKES 2025 anchor and ranks cells inward from the outer shore using Chamfer distance so desiccation shrinks organically toward the lagoon core.
+   *
+   * @param {Object} arg0_hcfg
+   * @param {Object} arg1_paths
+   */
+  static buildLagoonBasins (arg0_hcfg, arg1_paths) {
+    //Convert from parameters
+    let hcfg = arg0_hcfg;
+    let paths = arg1_paths;
+
+    //Declare local instance variables
+    let force = process.argv.includes("--force") || process.argv.includes("--force-lagoons");
+    let out_path = path.join(paths.intermediate_dir, "lagoon_basins_sparse.json");
+    let specs = hcfg.lagoon_basins || [];
+
+    if (!force && fs.existsSync(out_path)) {
+      console.log("[D_overlays] Cached: lagoon_basins_sparse.json");
+      return;
+    }
+
+    let f_natlake = GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "f_natlake_2025.f32"));
+    let f_osm = GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "f_land_osm_2025.f32"));
+    let out = [];
+
+    for (let i = 0; i < specs.length; i++) {
+      let sp = specs[i];
+      let b = sp.bbox;
+      let r0 = Math.max(0, Math.floor(((90.0 - b.lat_max)/180.0)*2160));
+      let r1 = Math.min(2160, Math.ceil(((90.0 - b.lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((b.lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4320, Math.ceil(((b.lon_max + 180.0)/360.0)*4320));
+      let w = c1 - c0;
+      let h = r1 - r0;
+      let rim_mask = new Uint8Array(w*h);
+      let in_lagoon = new Uint8Array(w*h);
+
+      for (let ly = 0; ly < h; ly++) {
+        let gy = r0 + ly;
+        let lat = 90.0 - (gy + 0.5)/12.0;
+        let g_off = gy*4320 + c0;
+        let l_off = ly*w;
+        for (let lx = 0; lx < w; lx++) {
+          let lon = -180.0 + (c0 + lx + 0.5)/12.0;
+          let g_idx = g_off + lx;
+          //Separate Garabogazkol (OSM inland landmass + HydroLAKES water) from open Caspian Sea on the west spit
+          let west_spit_cut = (lat < 41.25 && lon < 52.90);
+          let member = (!west_spit_cut && f_osm[g_idx] >= 0.45 && f_natlake[g_idx] > 0.05);
+          if (member) {
+            in_lagoon[l_off + lx] = 1;
+          } else {
+            rim_mask[l_off + lx] = 1;
+          }
+        }
+      }
+
+      let dist = BasinContourEngine.computeChamferDistance(rim_mask, w, h);
+      let max_d = 1.0;
+      for (let k = 0; k < dist.length; k++)
+        if (in_lagoon[k] === 1 && dist[k] > max_d) max_d = dist[k];
+
+      let pairs = [];
+      for (let ly = 0; ly < h; ly++) {
+        let gy = r0 + ly;
+        let g_off = gy*4320 + c0;
+        let l_off = ly*w;
+        for (let lx = 0; lx < w; lx++) {
+          if (in_lagoon[l_off + lx] === 0) continue;
+          let frac = f_natlake[g_off + lx];
+          //rank_norm: 0 = deepest central lagoon, 1 = natural curved outer shoreline
+          let rank_norm = 1.0 - Math.min(1.0, dist[l_off + lx]/max_d);
+          pairs.push([
+            g_off + lx,
+            Math.round(frac*10000)/10000,
+            Math.round(rank_norm*10000)/10000,
+          ]);
+        }
+      }
+
+      out.push({
+        id: sp.id,
+        level_curve: sp.level_curve,
+        name: sp.name,
+        pairs: pairs,
+      });
+      console.log(`[D_overlays]   Lagoon basin ${sp.id}: ${pairs.length} cells ranked from HydroLAKES.`);
+    }
+
+    fs.writeFileSync(out_path, JSON.stringify(out));
+    console.log(`[D_overlays] Built lagoon_basins_sparse.json (${out.length} basins).`);
+  }
+
+
+  /**
+   * Runs the Arctic Siberian hydrology simulation (channels, floodplains, fill-and-spill lakes) per relative sea-level tier and samples regional GLAC-1D + calibrated eustatic sea-level histories into arctic_hydrology.json.
+   *
+   * @param {Object} arg0_cfg
+   * @param {Object} arg1_hcfg
+   * @param {Object} arg2_paths
+   *
+   * @returns {Promise<void>}
+   */
+  static async buildPalaeoRivers (arg0_cfg, arg1_hcfg, arg2_paths) {
+    //Convert from parameters
+    let cfg = arg0_cfg;
+    let hcfg = arg1_hcfg;
+    let paths = arg2_paths;
+
+    //Declare local instance variables
+    let force = process.argv.includes("--force") || process.argv.includes("--force-palaeo-rivers");
+    let out_path = path.join(paths.intermediate_dir, "arctic_hydrology.json");
+    let spec = hcfg.arctic_hydrology;
+
+    if (!force && fs.existsSync(out_path)) {
+      console.log("[D_overlays] Cached: arctic_hydrology.json");
+      return;
+    }
+
+    let engine = new BasinContourEngine(paths.intermediate_dir);
+    let t0 = Date.now();
+    let res = ArcticHydrologyModel.build(spec, engine);
+    let sectors = res.sectors || [];
+
+    //Sample GLAC-1D + calibrated eustatic RSL trajectory at each Siberian Arctic sector
+    let glac_path = path.join(paths.raw_dir, "TOPicemsk.GLACD26kN9894GE90227A6005GGrBgic.nc");
+    let glac_nc = await NetCDF4Writer.openRead(glac_path);
+    let keys = glac_nc.keys();
+    let time_key = keys.find((k) => /^t(ime)?$/i.test(k)) || "T122KP11";
+    let lat_key = keys.find((k) => /^y|^lat/i.test(k));
+    let lon_key = keys.find((k) => /^x|^lon/i.test(k));
+    let hdc_key = keys.find((k) => k === "HDC") || keys.find((k) => /^hdc$/i.test(k));
+    let t_vals = Array.from(glac_nc.getValue(time_key));
+    let lat_vals = Array.from(glac_nc.getValue(lat_key));
+    let lon_vals = Array.from(glac_nc.getValue(lon_key));
+    let shape = glac_nc.getShape(hdc_key);
+    let ntime = shape[0];
+    let nlat = shape[1];
+    let nlon = shape[2];
+    let s2n = lat_vals[0] < lat_vals[lat_vals.length - 1];
+    let lon360 = lon_vals[lon_vals.length - 1] > 180.5;
+    let max_abs_t = Math.max(...t_vals.map((v) => Math.abs(v)));
+    let cal_years = t_vals.map((v) => (max_abs_t <= 40.0) ? (cfg.paleo.bp_reference_year - Math.abs(v)*1000.0) : (cfg.paleo.bp_reference_year - Math.abs(v)));
+
+    let present_idx = 0;
+    let best_d = Infinity;
+    for (let i = 0; i < ntime; i++) {
+      let d = Math.abs(cal_years[i] - cfg.paleo.bp_reference_year);
+      if (d < best_d) {
+        best_d = d;
+        present_idx = i;
+      }
+    }
+    let hdc_present = Float32Array.from(glac_nc.getSlice(hdc_key, [[present_idx, present_idx + 1], [0, nlat], [0, nlon]]));
+
+    let rsl_by_year = {};
+    let asc = cal_years[cal_years.length - 1] > cal_years[0];
+    let years = GeoGridUtils.getTimestepYears(cfg).filter((y) => y < cfg.paleo.gia_cutoff_year);
+
+    for (let yi = 0; yi < years.length; yi++) {
+      let yr = years[yi];
+      let i0 = 0;
+      let i1 = 0;
+
+      if (asc) {
+        if (yr <= cal_years[0]) {
+          i0 = 0; i1 = 0;
+        } else if (yr >= cal_years[ntime - 1]) {
+          i0 = ntime - 1; i1 = ntime - 1;
+        } else {
+          for (let i = 0; i < ntime - 1; i++) {
+            if (yr >= cal_years[i] && yr <= cal_years[i + 1]) {
+              i0 = i; i1 = i + 1;
+              break;
+            }
+          }
+        }
+      } else {
+        if (yr >= cal_years[0]) {
+          i0 = 0; i1 = 0;
+        } else if (yr <= cal_years[ntime - 1]) {
+          i0 = ntime - 1; i1 = ntime - 1;
+        } else {
+          for (let i = 0; i < ntime - 1; i++) {
+            if (yr <= cal_years[i] && yr >= cal_years[i + 1]) {
+              i0 = i; i1 = i + 1;
+              break;
+            }
+          }
+        }
+      }
+
+      let w1 = (i0 === i1) ? 0.0 : (yr - cal_years[i0])/(cal_years[i1] - cal_years[i0]);
+      let w0 = 1.0 - w1;
+      let hdc0 = glac_nc.getSlice(hdc_key, [[i0, i0 + 1], [0, nlat], [0, nlon]]);
+      let hdc1 = (i0 === i1) ? hdc0 : glac_nc.getSlice(hdc_key, [[i1, i1 + 1], [0, nlat], [0, nlon]]);
+      let eust_cal = C_BuildPaleoGiaIce.getCalibratedEustaticOffsetM(yr);
+      let row_rsls = [];
+
+      for (let si = 0; si < sectors.length; si++) {
+        let sec = sectors[si];
+        let v0 = C_BuildPaleoGiaIce.sampleBilinear(hdc0, nlat, nlon, s2n, lon360, sec.sample_lat, sec.sample_lon);
+        let v1 = (i0 === i1) ? v0 : C_BuildPaleoGiaIce.sampleBilinear(hdc1, nlat, nlon, s2n, lon360, sec.sample_lat, sec.sample_lon);
+        let vp = C_BuildPaleoGiaIce.sampleBilinear(hdc_present, nlat, nlon, s2n, lon360, sec.sample_lat, sec.sample_lon);
+        let rsl_m = -((w0*v0 + w1*v1 - vp) + eust_cal);
+        let rsl_round = Math.round(rsl_m*10.0)/10.0;
+        row_rsls.push(rsl_round);
+      }
+
+      rsl_by_year[yr] = row_rsls;
+    }
+
+    glac_nc.close();
+    res.rsl_by_year = rsl_by_year;
+    res.persistent_cells = this.listPersistentEstuaryCells(hcfg.holocene_infill, paths);
+    fs.writeFileSync(out_path, JSON.stringify(res));
+    console.log(`[D_overlays] Built arctic_hydrology.json (${res.cells.length} water cells, ${Object.keys(rsl_by_year).length} paleo years) in ${((Date.now() - t0)/1000).toFixed(1)}s.`);
+  }
+
+
+  /**
+   * Lists modern estuary water cells (connected to each persistent_water domain seed through cells with OSM land fraction < 0.98) that remain water in every year as the palaeo river/lake.
+   *
+   * @param {Object} arg0_infill_spec - holocene_infill section of hydro_geomorph_basins.json5.
+   * @param {Object} arg1_paths
+   *
+   * @returns {Array<number>} 5' pixel indices.
+   */
+  static listPersistentEstuaryCells (arg0_infill_spec, arg1_paths) {
+    //Convert from parameters
+    let spec = arg0_infill_spec ? arg0_infill_spec : {};
+    let paths = arg1_paths;
+
+    //Declare local instance variables
+    let all_domains = (spec.domains || []).filter((dm) => dm.persistent_water);
+    let f_osm = GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "f_land_osm_2025.f32"));
+    let out = new Set();
+
+    for (let di = 0; di < all_domains.length; di++) {
+      let dm = all_domains[di];
+      let r0 = Math.floor((90.0 - dm.bbox.lat_max)*12);
+      let r1 = Math.ceil((90.0 - dm.bbox.lat_min)*12);
+      let c0 = Math.floor((dm.bbox.lon_min + 180.0)*12);
+      let c1 = Math.ceil((dm.bbox.lon_max + 180.0)*12);
+      let seed = Math.floor((90.0 - dm.seed.lat)*12)*4320 + Math.floor((dm.seed.lon + 180.0)*12);
+      let queue = [seed];
+      let seen = new Set([seed]);
+
+      for (let t = 0; t < queue.length; t++) {
+        let cur = queue[t];
+        let cy = (cur/4320) | 0;
+        let cx = cur - cy*4320;
+        out.add(cur);
+        let all_nb = [[cy - 1, cx], [cy + 1, cx], [cy, cx - 1], [cy, cx + 1]];
+        for (let k = 0; k < 4; k++) {
+          let ny = all_nb[k][0];
+          let nx = all_nb[k][1];
+          if (ny < r0 || ny >= r1 || nx < c0 || nx >= c1) continue;
+          let ni = ny*4320 + nx;
+          if (seen.has(ni) || f_osm[ni] >= 0.98) continue;
+          seen.add(ni);
+          queue.push(ni);
+        }
+      }
+    }
+
+    //Return statement
+    return Array.from(out);
+  }
+
+
+  /**
    * Floods ice-dammed proglacial lakes (Lake Agassiz-Ojibway) on the 30" DEM against a tilted water plane,
    * bounded by each year's paleo ice front, writing proglacial_lakes_by_year.json.
    *
@@ -870,6 +1144,8 @@ class D_BuildDynamicOverlays {
     await this.buildReservoirOverlay(cfg, paths, cell_area_by_row);
     this.buildVosNetherlands(hcfg, paths);
     this.buildDemContourBasins(cfg, hcfg, paths);
+    this.buildLagoonBasins(hcfg, paths);
+    await this.buildPalaeoRivers(cfg, hcfg, paths);
     this.buildProglacialLakes(cfg, hcfg, paths);
     this.buildCuratedOverlays(paths, cell_area_by_row);
   }

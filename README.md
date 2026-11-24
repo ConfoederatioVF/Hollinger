@@ -113,5 +113,19 @@ All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular). Only s
 68. Panama Canal Authority. *Canal History*. ACP, <https://pancanal.com>.
 69. Klein Goldewijk, Kees, et al. “Anthropogenic Land Use Estimates for the Holocene - HYDE 3.2.” *Earth System Science Data*, vol. 9, no. 2, 2017, pp. 927-953, <https://doi.org/10.5194/essd-9-927-2017>.
 70. Schiavina, Marcello, et al. *GHS-POP R2023A - GHS Population Grid Multitemporal (1975-2030)*. European Commission, Joint Research Centre, 2023, <https://doi.org/10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE>.
+71. Kosarev, Aleksey N., et al. “Kara-Bogaz-Gol Bay: Physical and Chemical Evolution.” *Aquatic Geochemistry*, vol. 15, no. 1-2, 2009, pp. 223-236, <https://doi.org/10.1007/s10498-008-9054-z>.
+72. Dumont, Henri J. “The Caspian Lake: History, Biota, Structure, and Function.” *Limnology and Oceanography*, vol. 43, no. 1, 1998, pp. 44-52, <https://doi.org/10.4319/lo.1998.43.1.0044>.
+73. Kleiber, Hans Peter, and Frank Niessen. “Variations of Continental Discharge Pattern in Space and Time: Implications from the Laptev Sea Continental Margin, Arctic Siberia.” *International Journal of Earth Sciences*, vol. 89, no. 3, 2000, pp. 605-616, <https://doi.org/10.1007/s005310000130>.
+74. Bauch, Henning A., et al. “Chronology of the Holocene Transgression at the North Siberian Margin.” *Global and Planetary Change*, vol. 31, no. 1-4, 2001, pp. 125-139, <https://doi.org/10.1016/S0921-8181(01)00116-3>.
+75. Stein, Rüdiger. *Arctic Ocean Sediments: Processes, Proxies, and Paleoenvironment*. Developments in Marine Geology, vol. 2, Elsevier, 2008, <https://doi.org/10.1016/S1572-5480(08)X0001-6>.
+76. Jakobsson, Martin, et al. “The International Bathymetric Chart of the Arctic Ocean Version 4.0.” *Scientific Data*, vol. 7, 2020, 176, <https://doi.org/10.1038/s41597-020-0520-9>.
+77. Bahuguna, Anjali, et al. “IRS Views the Adams Bridge (Bridging India and Sri Lanka).” *Journal of the Indian Society of Remote Sensing*, vol. 31, no. 4, 2003, pp. 237-239, <https://doi.org/10.1007/BF03007343>.
+78. Dandabathula, Giribabu, et al. “A High-Resolution Digital Bathymetric Elevation Model Derived from ICESat-2 for Adam's Bridge.” *Scientific Data*, vol. 11, no. 1, 2024, 705, <https://doi.org/10.1038/s41597-024-03550-3>.
+79. Barnes, Richard, et al. “Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm for Digital Elevation Models.” *Computers & Geosciences*, vol. 62, 2014, pp. 117-127, <https://doi.org/10.1016/j.cageo.2013.04.024>.
+80. Grant, K. M., et al. “Rapid Coupling between Ice Volume and Polar Temperature over the Past 150,000 Years.” *Nature*, vol. 491, no. 7426, 2012, pp. 744-747, <https://doi.org/10.1038/nature11593>.
+81. Moody, John A., and Brent M. Troutman. “Characterization of the Spatial Variability of Channel Morphology.” *Earth Surface Processes and Landforms*, vol. 27, no. 12, 2002, pp. 1251-1266, <https://doi.org/10.1002/esp.403>.
+82. Stein, Ruediger, et al. “Arctic (Palaeo) River Discharge and Environmental Change: Evidence from the Holocene Kara Sea Sedimentary Record.” *Quaternary Science Reviews*, vol. 23, no. 11-13, 2004, pp. 1485-1511, <https://doi.org/10.1016/j.quascirev.2003.12.004>.
+83. Schwamborn, Georg, et al. “Late Quaternary Sedimentation History of the Lena Delta.” *Quaternary International*, vol. 89, no. 1, 2002, pp. 119-134, <https://doi.org/10.1016/S1040-6182(01)00084-2>.
+84. Nobre, A. D., et al. “Height Above the Nearest Drainage – a Hydrologically Relevant New Terrain Model.” *Journal of Hydrology*, vol. 404, no. 1-2, 2011, pp. 13-29, <https://doi.org/10.1016/j.jhydrol.2011.03.051>.
   
 </details>

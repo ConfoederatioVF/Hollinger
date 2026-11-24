@@ -1,21 +1,21 @@
 {
   "ghs_vs_hyde_vs_hollinger_aligned_1row": {
-    "cells_missing_hollinger": 48797,
+    "cells_missing_hollinger": 48831,
     "cells_missing_hyde": 56878,
     "cells_recovered_by_hollinger": 23807,
     "pct_pop_covered_hollinger": 99.4991,
     "pct_pop_covered_hyde": 99.4245,
-    "pop_missing_hollinger": 41033824,
+    "pop_missing_hollinger": 41033960,
     "pop_missing_hyde": 47145095,
     "total_pop": 8191987086
   },
   "ghs_vs_hyde_vs_hollinger_raw": {
-    "cells_missing_hollinger": 52598,
+    "cells_missing_hollinger": 52635,
     "cells_missing_hyde": 57438,
     "cells_recovered_by_hollinger": 20461,
     "pct_pop_covered_hollinger": 98.5341,
     "pct_pop_covered_hyde": 98.3453,
-    "pop_missing_hollinger": 120089978,
+    "pop_missing_hollinger": 120090122,
     "pop_missing_hyde": 135554692,
     "total_pop": 8191987086
   },

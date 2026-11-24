@@ -155,8 +155,11 @@
     },
     {
       "type": "Feature",
-      "properties": { "id": "eg_suez_canal", "name": "Suez Canal Cut" },
-      "geometry": { "type": "Polygon", "coordinates": [[[32.28, 29.92], [32.38, 29.92], [32.38, 31.28], [32.28, 31.28], [32.28, 29.92]]] }
+      "properties": { "id": "eg_suez_canal", "name": "Suez Canal & Bitter Lakes Cut" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[32.24, 30.00], [32.60, 30.00], [32.60, 30.42], [32.42, 30.42], [32.42, 31.08], [32.24, 31.08], [32.24, 30.00]]]
+      }
     },
     {
       "type": "Feature",

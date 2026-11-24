@@ -3,7 +3,9 @@
 let fs = require("node:fs");
 let path = require("node:path");
 
+let BasinContourEngine = require("../lib/BasinContourEngine");
 let GeoGridUtils = require("../lib/GeoGridUtils");
+let HoloceneInfillModel = require("../lib/HoloceneInfillModel");
 let NetCDF4Writer = require("../lib/NetCDF4Writer");
 
 /**
@@ -13,10 +15,10 @@ let NetCDF4Writer = require("../lib/NetCDF4Writer");
  */
 class C_BuildPaleoGiaIce {
   /**
-   * Returns a smooth Lambeck et al. (2014) / ICE-6G_C eustatic calibration offset (m) added to
-   * GLAC-1D Δz during 10000–6000 BC so the 12 ka BP stand reaches ~-59 m (bridging Beringia,
-   * unifying Sundaland, drying the Persian Gulf to ~53E, and enclosing Lake Carpentaria) while
-   * returning smoothly to 0 m by 6000 BC so mid-Holocene Littorina/Tyrrell GIA submergence is preserved.
+   * Returns a smooth Lambeck et al. (2014) / Grant et al. (2012) eustatic calibration offset (m) added to
+   * GLAC-1D Δz during 10000–6000 BC so the 12 ka BP stand reaches ~-66 to -68 m in the Persian Gulf and
+   * ~-73 to -81 m on the Siberian Arctic shelf (bridging Beringia, unifying Sundaland, drying the Persian Gulf
+   * cleanly to ~52E without NW sill extrusions, and enclosing Lake Carpentaria) while returning to 0 m by 6000 BC.
    *
    * @param {number} arg0_year
    *
@@ -28,9 +30,9 @@ class C_BuildPaleoGiaIce {
 
     //Declare local instance variables
     let knots = [
-      [-10000, 18.0],
-      [-9000, 12.0],
-      [-8000, 6.0],
+      [-10000, 27.0],
+      [-9000, 16.0],
+      [-8000, 7.5],
       [-7000, 2.0],
       [-6000, 0.0],
     ];
@@ -900,6 +902,234 @@ class C_BuildPaleoGiaIce {
   }
 
   /**
+   * Refines Persian Gulf & Hormuz paleo shoreline on 30" ETOPO bedrock using tapered Gaussian marine
+   * bathymetric denoising, Chamfer morphological closing/opening west of 54.8E, and strict Gulf of Oman
+   * BFS connectivity so jagged ship-track pits and twin-prong sill spikes never extrude at 10000-9000 BC.
+   *
+   * @param {Float32Array} arg0_delta_coast
+   * @param {Float32Array} arg1_dz_5m
+   * @param {Int16Array} arg2_bed_i16
+   * @param {Float32Array} arg3_f_etopo_2025
+   * @param {Object} arg4_meta
+   */
+  static cleanPersianGulfPaleoCoast (arg0_delta_coast, arg1_dz_5m, arg2_bed_i16, arg3_f_etopo_2025, arg4_meta) {
+    //Convert from parameters
+    let delta_coast = arg0_delta_coast;
+    let dz_5m = arg1_dz_5m;
+    let bed_i16 = arg2_bed_i16;
+    let f_etopo_2025 = arg3_f_etopo_2025;
+    let meta = arg4_meta;
+
+    //Declare local instance variables
+    let fx = meta.factor_x;
+    let fy = meta.factor_y;
+    let inv_sub = 1.0/(fx*fy);
+    let scale_m = meta.scale_m_per_unit;
+    let src_w = meta.src_w;
+    let out_w = 4320;
+    let out_h = 2160;
+    let r0 = Math.floor(((90.0 - 29.6)/180.0)*out_h);
+    let r1 = Math.ceil(((90.0 - 24.0)/180.0)*out_h);
+    let c0 = Math.floor(((48.5 + 180.0)/360.0)*out_w);
+    let c1 = Math.ceil(((57.5 + 180.0)/360.0)*out_w);
+    let sy0 = r0*fy;
+    let sx0 = c0*fx;
+    let h = (r1 - r0)*fy;
+    let w = (c1 - c0)*fx;
+    let col_hormuz = Math.floor((54.6 + 180.0)*(src_w/360.0)) - sx0;
+    let col_split = Math.floor((55.4 + 180.0)*(src_w/360.0)) - sx0;
+
+    let z_raw = new Float32Array(w*h);
+    for (let ly = 0; ly < h; ly++) {
+      let sy = sy0 + ly;
+      let ro = ly*w;
+      for (let lx = 0; lx < w; lx++)
+        z_raw[ro + lx] = bed_i16[sy*src_w + (sx0 + lx)]*scale_m;
+    }
+
+    //Separable Gaussian marine-only bathymetric smoothing (sigma = 16 px ~ 14 km), tapering smoothly to raw across 54.6..55.4E
+    let sigma = 16.0;
+    let rad = Math.ceil(sigma*2.5);
+    let ker = new Float32Array(2*rad + 1);
+    for (let d = -rad; d <= rad; d++)
+      ker[d + rad] = Math.exp(-(d*d)/(2.0*sigma*sigma));
+
+    let z_tmp = new Float32Array(w*h);
+    let z_blur = new Float32Array(w*h);
+
+    for (let y = 0; y < h; y++) {
+      let ro = y*w;
+      for (let x = 0; x < w; x++) {
+        let z0 = z_raw[ro + x];
+        if (x >= col_split || z0 > -2.0) {
+          z_tmp[ro + x] = z0;
+          continue;
+        }
+        let ws = 0.0;
+        let vs = 0.0;
+        for (let d = -rad; d <= rad; d++) {
+          let xx = x + d;
+          if (xx >= 0 && xx < w && z_raw[ro + xx] <= -1.0) {
+            let wt = ker[d + rad];
+            ws += wt;
+            vs += wt*z_raw[ro + xx];
+          }
+        }
+        z_tmp[ro + x] = (ws > 0.0) ? (vs/ws) : z0;
+      }
+    }
+
+    for (let y = 0; y < h; y++) {
+      let ro = y*w;
+      for (let x = 0; x < w; x++) {
+        let z0 = z_raw[ro + x];
+        if (x >= col_split || z0 > -2.0) {
+          z_blur[ro + x] = z0;
+          continue;
+        }
+        let ws = 0.0;
+        let vs = 0.0;
+        for (let d = -rad; d <= rad; d++) {
+          let yy = y + d;
+          if (yy >= 0 && yy < h && z_raw[yy*w + x] <= -1.0) {
+            let wt = ker[d + rad];
+            ws += wt;
+            vs += wt*z_tmp[yy*w + x];
+          }
+        }
+        let zb = (ws > 0.0) ? (vs/ws) : z0;
+        let t_fade = Math.min(1.0, Math.max(0.0, (x - col_hormuz)/(col_split - col_hormuz)));
+        z_blur[ro + x] = zb*(1.0 - t_fade) + z0*t_fade;
+      }
+    }
+
+    let wet = new Uint8Array(w*h);
+    for (let ly = 0; ly < h; ly++) {
+      let gy = r0 + Math.floor(ly/fy);
+      let gx_row = gy*out_w;
+      let dst_off = ly*w;
+      for (let lx = 0; lx < w; lx++) {
+        let gx = c0 + Math.floor(lx/fx);
+        let dz = dz_5m[gx_row + gx];
+        if ((z_blur[dst_off + lx] + dz) < 0.0) wet[dst_off + lx] = 1;
+      }
+    }
+
+    let sr = Math.min(h - 1, Math.max(0, Math.floor(((90.0 - 25.0)/180.0)*meta.src_h) - sy0));
+    let sc = Math.min(w - 1, Math.max(0, Math.floor(((57.2 + 180.0)/360.0)*src_w) - sx0));
+
+    let bfsOman = (arg0_mask) => {
+      let mask = arg0_mask;
+      let vis = new Uint8Array(w*h);
+      let q = new Int32Array(w*h);
+      let qh = 0;
+      let qt = 0;
+      if (mask[sr*w + sc] === 1) {
+        vis[sr*w + sc] = 1;
+        q[qt++] = sr*w + sc;
+      }
+      for (; qh < qt; ) {
+        let cur = q[qh++];
+        let cy = (cur/w) | 0;
+        let cx = cur - cy*w;
+        if (cx > 0 && vis[cur - 1] === 0 && mask[cur - 1] === 1) {
+          vis[cur - 1] = 1; q[qt++] = cur - 1;
+        }
+        if (cx < w - 1 && vis[cur + 1] === 0 && mask[cur + 1] === 1) {
+          vis[cur + 1] = 1; q[qt++] = cur + 1;
+        }
+        if (cy > 0 && vis[cur - w] === 0 && mask[cur - w] === 1) {
+          vis[cur - w] = 1; q[qt++] = cur - w;
+        }
+        if (cy < h - 1 && vis[cur + w] === 0 && mask[cur + w] === 1) {
+          vis[cur + w] = 1; q[qt++] = cur + w;
+        }
+      }
+      return vis;
+    };
+
+    let morphOpen = (arg0_mask, arg1_r) => {
+      let mask = arg0_mask;
+      let r = arg1_r;
+      let inv = new Uint8Array(w*h);
+      for (let i = 0; i < mask.length; i++) inv[i] = mask[i] ? 0 : 1;
+      let d_in = BasinContourEngine.computeChamferDistance(inv, w, h);
+      let core = new Uint8Array(w*h);
+      for (let y = 0; y < h; y++) {
+        let ro = y*w;
+        for (let x = 0; x < w; x++) {
+          let i = ro + x;
+          core[i] = (x < col_hormuz) ? ((d_in[i] >= r) ? 1 : 0) : mask[i];
+        }
+      }
+      let d_out = BasinContourEngine.computeChamferDistance(core, w, h);
+      let out = new Uint8Array(w*h);
+      for (let y = 0; y < h; y++) {
+        let ro = y*w;
+        for (let x = 0; x < w; x++) {
+          let i = ro + x;
+          out[i] = (x < col_hormuz) ? ((d_out[i] <= r && mask[i] === 1) ? 1 : 0) : mask[i];
+        }
+      }
+      return out;
+    };
+
+    let morphClose = (arg0_mask, arg1_r) => {
+      let mask = arg0_mask;
+      let r = arg1_r;
+      let d_out = BasinContourEngine.computeChamferDistance(mask, w, h);
+      let dil = new Uint8Array(w*h);
+      for (let y = 0; y < h; y++) {
+        let ro = y*w;
+        for (let x = 0; x < w; x++) {
+          let i = ro + x;
+          dil[i] = (z_raw[i] <= -1.0 && d_out[i] <= r) ? 1 : mask[i];
+        }
+      }
+      let inv = new Uint8Array(w*h);
+      for (let i = 0; i < dil.length; i++) inv[i] = dil[i] ? 0 : 1;
+      let d_in = BasinContourEngine.computeChamferDistance(inv, w, h);
+      let out = new Uint8Array(w*h);
+      for (let y = 0; y < h; y++) {
+        let ro = y*w;
+        for (let x = 0; x < w; x++) {
+          let i = ro + x;
+          out[i] = (x < col_hormuz && d_in[i] >= r) ? 1 : mask[i];
+        }
+      }
+      return out;
+    };
+
+    let vis = bfsOman(wet);
+    vis = morphOpen(vis, 7.5);
+    vis = bfsOman(vis);
+    vis = morphClose(vis, 14.0);
+    vis = morphOpen(vis, 7.5);
+    vis = bfsOman(vis);
+
+    //Write clean 5' delta_coast values back inside western/central Gulf (lon <= 57.1E, lat >= 24.4N)
+    let r_end = Math.floor(((90.0 - 24.4)/180.0)*out_h);
+    let c_end = Math.floor(((57.1 + 180.0)/360.0)*out_w);
+    for (let gy = r0; gy < Math.min(r1, r_end); gy++) {
+      let ly0 = (gy - r0)*fy;
+      for (let gx = c0; gx < Math.min(c1, c_end); gx++) {
+        let lx0 = (gx - c0)*fx;
+        let land_hits = 0;
+
+        for (let dy = 0; dy < fy; dy++) {
+          let row_off = (ly0 + dy)*w + lx0;
+          for (let dx = 0; dx < fx; dx++)
+            if (vis[row_off + dx] === 0) land_hits++;
+        }
+
+        let idx = gy*out_w + gx;
+        let f_paleo = land_hits*inv_sub;
+        delta_coast[idx] = f_paleo - f_etopo_2025[idx];
+      }
+    }
+  }
+
+  /**
    * Executes Step C: extracts GLAC-1D 100-yr paleo slices, computes GIA ΔRSL shoreline anomalies
    * and paleo glaciation (incl. permanent ice shelves) for all unique paleo timesteps up to gia_cutoff_year.
    *
@@ -908,6 +1138,7 @@ class C_BuildPaleoGiaIce {
   static async run () {
     //Declare local instance variables
     let cfg = GeoGridUtils.loadConfig("model_config.json5");
+    let hcfg = GeoGridUtils.loadConfig("hydro_geomorph_basins.json5");
     let paths = GeoGridUtils.resolvePaths();
     let paleo_dir = path.join(paths.intermediate_dir, "paleo_slices");
     let years = GeoGridUtils.getTimestepYears(cfg);
@@ -1015,6 +1246,10 @@ class C_BuildPaleoGiaIce {
     let shelf_thresh = cfg.paleo.glac1d_shelf_thickness_m;
     let src_w = etopo_meta.src_w;
     let total_px = out_w*out_h;
+
+    //Holocene estuarine/deltaic sediment back-stripping (built-up Ob, Taz, Yenisei, Khatanga estuaries; Lena, Yana, Indigirka, Kolyma deltas)
+    console.log("[C_paleo] Building Holocene estuarine/deltaic infill model ...");
+    let infill = new HoloceneInfillModel(hcfg.holocene_infill, bed_i16, etopo_meta);
 
     //Helper to interpolate a GLAC-1D field to any target calendar year
     let getGlac1DSlice = (arg0_year) => {
@@ -1148,6 +1383,7 @@ class C_BuildPaleoGiaIce {
 
       //Step 3a: Upsample smooth GIA Δz (with calibrated eustatic stand for 10000-6000 BC) and sharpened paleo ice anomaly
       let eustatic_cal = this.getCalibratedEustaticOffsetM(year);
+      let infill_missing = 1.0 - infill.getCompletion(year);
       let laurentide_mainland_mult = 1.0;
       if (year >= -4500) {
         laurentide_mainland_mult = 0.0;
@@ -1166,7 +1402,7 @@ class C_BuildPaleoGiaIce {
           let dice_raw = this.sampleBilinear(ice_delta_grid, nlat, nlon, south_to_north, lon_0_360, lat_deg, lon_deg);
 
           dz_5m_work[idx] = dz;
-          z_5m_work[idx] = min_bed_5m[idx] + dz;
+          z_5m_work[idx] = min_bed_5m[idx] + dz - infill.max_5m[idx]*infill_missing;
 
           //R2-D03a: Crisp 0.50 contour threshold for coarse GLAC-1D paleo ice expansion/retreat
           //eliminates blocky translucent pale-blue-white halos (e.g. Keewatin at 6000 BC)
@@ -1390,7 +1626,8 @@ class C_BuildPaleoGiaIce {
           let idx = row_off + x;
           let dz = dz_5m_work[idx];
 
-          if ((marine_modern[idx] === 0 && marine_paleo[idx] === 0) || Math.abs(dz) < thresh) continue;
+          let infill_m = infill.max_5m[idx]*infill_missing;
+          if ((marine_modern[idx] === 0 && marine_paleo[idx] === 0) || (Math.abs(dz) < thresh && infill_m <= 0.0)) continue;
 
           //Quick bound skip: if min bedrock + dz >= 0 and already full land, or max possible < -600m and already ocean, skip sub-loop
           let min_z = z_5m_work[idx];
@@ -1404,7 +1641,8 @@ class C_BuildPaleoGiaIce {
           for (let fy = 0; fy < factor_y; fy++) {
             let bed_off = (sy0 + fy)*src_w + sx0;
             for (let fx = 0; fx < factor_x; fx++) {
-              if ((bed_i16[bed_off + fx] + dz_halfm) >= 0.0)
+              let off_halfm = (infill_m > 0.0) ? infill.getMissingThicknessM(sy0 + fy, sx0 + fx, infill_missing)/scale_m : 0.0;
+              if ((bed_i16[bed_off + fx] + dz_halfm - off_halfm) >= 0.0)
                 land_hits++;
             }
           }
@@ -1464,6 +1702,11 @@ class C_BuildPaleoGiaIce {
           }
         }
       }
+
+      //Persian Gulf & Hormuz clean 30" ocean connectivity + ship-track smoothing (year < -5000):
+      //Eliminates disconnected -60m sinkholes (e.g. 27.38N 50.08E) and GEBCO track spikes at 10000 BC!
+      if (year < -5000)
+        this.cleanPersianGulfPaleoCoast(delta_coast, dz_5m_work, bed_i16, f_etopo_land_2025, etopo_meta);
 
       GeoGridUtils.writeFloat32Bin(path.join(paleo_dir, `delta_coast_${year}.f32`), delta_coast);
       GeoGridUtils.writeFloat32Bin(path.join(paleo_dir, `f_ice_${year}.f32`), f_ice_t);

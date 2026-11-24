@@ -74,6 +74,74 @@ class E_AssembleOutputs {
   }
 
   /**
+   * Applies simulated Arctic Siberian surface water: each 5' cell's water fraction is interpolated between relative sea-level tiers using the regional sea level, itself interpolated in longitude between sector sample points (modern years use 0 m).
+   *
+   * @param {Float32Array} arg0_f_land
+   * @param {Float32Array} arg1_f_ice
+   * @param {number} arg2_year
+   * @param {Object} arg3_hyd - Parsed arctic_hydrology.json.
+   * @param {number} arg4_wetness - Palaeo-hydrology weight for this year (0 = modern mapped water only).
+   */
+  static applyArcticHydrology (arg0_f_land, arg1_f_ice, arg2_year, arg3_hyd, arg4_wetness) {
+    //Convert from parameters
+    let f_land = arg0_f_land;
+    let f_ice = arg1_f_ice;
+    let year = arg2_year;
+    let hyd = arg3_hyd;
+    let wetness = arg4_wetness;
+
+    //Guard clauses
+    if (!hyd || !hyd.cells || hyd.cells.length === 0 || !hyd.sectors || hyd.sectors.length === 0) return;
+    if (wetness <= 0.0) return;
+
+    //Declare local instance variables
+    let cells = hyd.cells;
+    let levels = hyd.rsl_levels_m;
+    let last = levels.length - 1;
+    let rsls_raw = (hyd.rsl_by_year && hyd.rsl_by_year[year]) ? hyd.rsl_by_year[year] : null;
+    let sectors = hyd.sectors.map((sec, si) => ({ lon: sec.sample_lon, rsl: rsls_raw ? rsls_raw[si] : 0.0 })).sort((a, b) => a.lon - b.lon);
+
+    for (let k = 0; k < cells.length; k++) {
+      let row = cells[k];
+      let p_idx = row[0];
+      if (f_land[p_idx] <= 0.0 || f_ice[p_idx] >= 0.50) continue;
+      let lon = -180.0 + ((p_idx % 4320) + 0.5)*(360.0/4320.0);
+      let rsl = sectors[0].rsl;
+
+      if (lon >= sectors[sectors.length - 1].lon) {
+        rsl = sectors[sectors.length - 1].rsl;
+      } else if (lon > sectors[0].lon) {
+        for (let si = 0; si < sectors.length - 1; si++) {
+          if (lon >= sectors[si].lon && lon <= sectors[si + 1].lon) {
+            let t = (lon - sectors[si].lon)/(sectors[si + 1].lon - sectors[si].lon);
+            rsl = sectors[si].rsl + t*(sectors[si + 1].rsl - sectors[si].rsl);
+            break;
+          }
+        }
+      }
+
+      let frac = row[1 + last];
+      if (rsl <= levels[0]) {
+        frac = row[1];
+      } else if (rsl < levels[last]) {
+        for (let ti = 0; ti < last; ti++) {
+          if (rsl >= levels[ti] && rsl <= levels[ti + 1]) {
+            let t = (rsl - levels[ti])/(levels[ti + 1] - levels[ti]);
+            frac = row[1 + ti]*(1.0 - t) + row[2 + ti]*t;
+            break;
+          }
+        }
+      }
+
+      frac *= wetness;
+      if (frac <= 0.005) continue;
+      let cap = 1.0 - frac;
+      if (f_land[p_idx] > cap) f_land[p_idx] = Math.max(0.0, cap);
+    }
+  }
+
+
+  /**
    * Builds a cleaned static natural-lake mask that removes:
    *  - Any pixels covered by non-Lake-Control GDW v1.0 anthropogenic reservoirs (fixes HydroLAKES Lake_type==1 leaks)
    *  - Static Caspian, Aral, Chad, and Urmia polygons (which are driven dynamically by 30" ETOPO contours!)
@@ -359,6 +427,7 @@ class E_AssembleOutputs {
 
     //Declare local instance variables
     let cfg = st.cfg;
+    let delta_coast = null;
     let f_ice = st.f_ice_2025;
     let f_land = new Float32Array(st.f_land_osm_2025);
     let total_px = cfg.grid.width*cfg.grid.height;
@@ -369,7 +438,7 @@ class E_AssembleOutputs {
       let ice_path = path.join(st.paleo_dir, `f_ice_${year}.f32`);
 
       if (fs.existsSync(coast_path)) {
-        let delta_coast = GeoGridUtils.readFloat32Bin(coast_path);
+        delta_coast = GeoGridUtils.readFloat32Bin(coast_path);
         let f_etopo_2025 = st.f_etopo_land_2025;
         for (let i = 0; i < total_px; i++) {
           let dc = delta_coast[i];
@@ -453,7 +522,14 @@ class E_AssembleOutputs {
         let remove_factor = 1.0 - progress;
         for (let x = 0; x < ev.pairs.length; x++) {
           let p_idx = ev.pairs[x][0];
-          let delta = ev.pairs[x][1]*remove_factor;
+          //Scale subtraction by modern marine exposure (1 - gia_gain) so emergent Pleistocene seabed (e.g. Bahrain/Dubai at 10000 BC) is never carved into desert holes!
+          let gia_scale = 1.0;
+          if (delta_coast && delta_coast[p_idx] > 0.0) {
+            let denom = 1.0 - st.f_etopo_land_2025[p_idx];
+            let gain = (denom > 1e-4) ? Math.min(1.0, delta_coast[p_idx]/denom) : 1.0;
+            gia_scale = Math.max(0.0, 1.0 - gain);
+          }
+          let delta = ev.pairs[x][1]*remove_factor*gia_scale;
           let nv = f_land[p_idx] - delta;
           f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
         }
@@ -521,6 +597,45 @@ class E_AssembleOutputs {
         let nv = f_land[p_idx] - pairs[k][1];
         f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
       }
+    }
+
+    //8c. Apply dynamic sill-controlled coastal lagoons (Garabogazköl: Caspian lowstands + 1980-1992 Soviet dam)
+    let shore_band_lag = 0.03;
+    for (let li = 0; li < st.lagoons.length; li++) {
+      let lg = st.lagoons[li];
+      let water_mult = this.evalCurve(lg.level_curve, year);
+      if (water_mult <= 0.0) continue;
+
+      for (let k = 0; k < lg.pairs.length; k++) {
+        let p_idx = lg.pairs[k][0];
+        let poly_frac = lg.pairs[k][1];
+        let rank_norm = lg.pairs[k][2];
+        let local_water = 0.0;
+
+        if (water_mult >= 0.999 || rank_norm <= water_mult) {
+          local_water = 1.0;
+        } else if (rank_norm < water_mult + shore_band_lag) {
+          local_water = 1.0 - (rank_norm - water_mult)/shore_band_lag;
+        }
+
+        let eff_sub = poly_frac*local_water;
+        if (eff_sub >= 0.50 && st.f_land_osm_2025[p_idx] >= 0.95) {
+          f_land[p_idx] = 0.0;
+        } else if (eff_sub > 0.0) {
+          let nv = f_land[p_idx] - eff_sub;
+          f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+        }
+      }
+    }
+
+    //8d. Apply simulated Arctic Siberian surface water (channels, floodplains, fill-and-spill lakes) blended by local relative sea level (overlap-safe: water = max(existing water, simulated water))
+    this.applyArcticHydrology(f_land, f_ice, year, st.arctic_hydrology, this.evalCurve(st.hydrology_wetness_curve, year));
+
+    //8e. Persistent palaeo-estuary water (lower Ob, Taz, Yenisei): never drier than today inland of the modern estuary mouths
+    let persist = (st.arctic_hydrology && st.arctic_hydrology.persistent_cells) ? st.arctic_hydrology.persistent_cells : [];
+    for (let k = 0; k < persist.length; k++) {
+      let p_idx = persist[k];
+      if (f_land[p_idx] > st.f_land_osm_2025[p_idx]) f_land[p_idx] = st.f_land_osm_2025[p_idx];
     }
 
     //9. Apply dated GDW v1.0 reservoirs (strictly 0 subtraction before impound_year -> ZERO anachronistic ghosts!)
@@ -605,6 +720,25 @@ class E_AssembleOutputs {
             f_land[p_idx] = (nv < 1.0) ? nv : 1.0;
           }
         }
+      }
+    }
+
+    //10b. Apply explicit historic narrow land bridges & reef island chains (e.g. Adam's Bridge)
+    for (let li = 0; li < st.land_bridges.length; li++) {
+      let lb = st.land_bridges[li];
+      let breach_t = 0.0;
+      if (year >= lb.breach_end_year) {
+        breach_t = 1.0;
+      } else if (year > lb.breach_start_year) {
+        breach_t = (year - lb.breach_start_year)/(lb.breach_end_year - lb.breach_start_year);
+      }
+      for (let ci = 0; ci < lb.pairs.length; ci++) {
+        let p_idx = lb.pairs[ci][0];
+        let min_pre = lb.pairs[ci][1];
+        let min_post = lb.pairs[ci][2];
+        let target_min = min_pre + (min_post - min_pre)*breach_t;
+        if (target_min > f_land[p_idx])
+          f_land[p_idx] = target_min;
       }
     }
 
@@ -711,6 +845,19 @@ class E_AssembleOutputs {
     let f_gdw_union = fs.existsSync(gdw_union_path) ? GeoGridUtils.readFloat32Bin(gdw_union_path) : null;
     let { cleaned, extra_timed } = this.buildCleanedNatLakeMask(f_natlake_raw, f_gdw_union, hcfg);
 
+    let lagoons_path = path.join(paths.intermediate_dir, "lagoon_basins_sparse.json");
+    let hydrology_path = path.join(paths.intermediate_dir, "arctic_hydrology.json");
+    let land_bridges = (hcfg.land_bridges || []).map((lb) => ({
+      breach_end_year: lb.breach_end_year,
+      breach_start_year: lb.breach_start_year,
+      id: lb.id,
+      pairs: lb.cells.map(([lat, lon, min_pre, min_post]) => {
+        let gy = Math.min(2159, Math.max(0, Math.floor(((90.0 - lat)/180.0)*2160)));
+        let gx = Math.min(4319, Math.max(0, Math.floor(((lon + 180.0)/360.0)*4320)));
+        return [gy*4320 + gx, min_pre, min_post];
+      }),
+    }));
+
     let state = {
       cell_area_by_row: cell_area_by_row,
       cfg: cfg,
@@ -720,9 +867,13 @@ class E_AssembleOutputs {
       f_ice_2025: GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "f_ice_2025.f32")),
       f_land_osm_2025: GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "f_land_osm_2025.f32")),
       f_natlake_cleaned: cleaned,
+      lagoons: fs.existsSync(lagoons_path) ? JSON.parse(fs.readFileSync(lagoons_path, "utf8")) : [],
+      land_bridges: land_bridges,
       min_bed_5m: GeoGridUtils.readFloat32Bin(path.join(paths.intermediate_dir, "etopo_min_bed_5m.f32")),
       nl_vos: JSON.parse(fs.readFileSync(path.join(paths.intermediate_dir, "nl_vos_epochs.json"), "utf8")),
       paleo_dir: path.join(paths.intermediate_dir, "paleo_slices"),
+      arctic_hydrology: fs.existsSync(hydrology_path) ? JSON.parse(fs.readFileSync(hydrology_path, "utf8")) : null,
+      hydrology_wetness_curve: (hcfg.arctic_hydrology && hcfg.arctic_hydrology.palaeo_wetness_curve) ? hcfg.arctic_hydrology.palaeo_wetness_curve : [[-10000, 1.0]],
       paleolakes: JSON.parse(fs.readFileSync(path.join(paths.intermediate_dir, "paleolake_sparse.json"), "utf8")),
       proglacial: JSON.parse(fs.readFileSync(path.join(paths.intermediate_dir, "proglacial_lakes_by_year.json"), "utf8")),
       reclamation: JSON.parse(fs.readFileSync(path.join(paths.intermediate_dir, "reclamation_sparse.json"), "utf8")),
