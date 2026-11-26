@@ -32,11 +32,27 @@ As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), H
 
 ## File Structure.
 
-All rasters are rendered at 4320x2160 resolution (WGS84 Equirectangular). Only separate indicators are listed, land use estimate categories which coincide either with ALCC or HYDE3.5 are included in the Velkscala repository.
+All rasters are rendered at 4320×2160 resolution (5-arcminute WGS84 Equirectangular) across 218 timesteps from 10000 BC to 2025 AD (`-10000` to `2025`, where `0` = 1 AD).
 
-- `landarea_Hollinger.nc` - Contains annual estimations of land, glacial coverage, and sea/lakes in km^2 terms.
-  - Order of precedence: land area > glaciers > sea/lakes
-  - Land area is positive, glaciers are negative (abs. value conversion), and sea/lakes have a float value of 0.
+### Directory Layout.
+
+- `common/` — Shared JSON5 configurations (`model_config.json5`, `climate_config.json5`, `anthromes_config.json5`, `source_manifest.json5`, `render_config.json5`, `hydro_geomorph_basins.json5`, `paleolake_registry.json5`, `reclamation_registry.json5`).
+- `core/` — Shared Node.js and Python utilities (`GeoGridUtils.js`, `NetCDF4Writer.js`, `EqualEarthProjector.js`, `BasinContourEngine.js`, `ArcticHydrologyModel.js`, `HoloceneInfillModel.js`, `ScanlineRasteriser.js`, `hollinger_core.py`).
+- `exports/` — Exported 4K MP4 animations (full and `_compressed` <= 20 MB versions) and preview stills by indicator.
+- `tests/` — Diagnostics, regional previews, audit certificates, and stop-hook lock records.
+- `landarea/` — Dynamic ice-free land area, glaciation, and water pipeline:
+  - [`landarea/landarea.nc`](landarea/landarea.nc) — Signed `float32` estimations of land (`> 0`), glacial coverage (`< 0`), and sea/lakes (`0`) in km² terms. Order of precedence: land area > glaciers > sea/lakes.
+  - `landarea/3.rasters/` — 218 big-endian `float32` RGBA GeoPNGs (`land_area_<year>.png`).
+- `anthromes/` — Dynamic Anthromes 12K classification (Ellis et al., 2020, 2021) coupled with changing `landarea` and Holocene biomes:
+  - [`anthromes/anthromes.nc`](anthromes/anthromes.nc) — Compressed `uint8` NetCDF-4 with canonical integer codes (`0`, `11`–`63`).
+  - `anthromes/3.rasters/` — 218 big-endian `uint32` RGBA GeoPNGs (`anthromes_<year>.png`).
+  - [`anthromes/README.md`](anthromes/README.md) — Complete specification of the integer classification scheme, decision tree, dynamic biome coupling, and citations.
+- `climate/` — Downscaled CCSM3 TraCE-21ka + WorldClim 2.1 + CRU TS 4.10 climate classifications (10000 BC – 2025 AD at 5 arc-minutes):
+  - [`climate/koeppen_geiger.nc`](climate/koeppen_geiger.nc) — Compressed `uint8` Köppen–Geiger classification (`0`, `1`–`30`).
+  - [`climate/trewartha.nc`](climate/trewartha.nc) — Compressed `uint8` Trewartha classification (`0`, `1`–`17`).
+  - [`climate/holdridge_lifezones.nc`](climate/holdridge_lifezones.nc) — Compressed `uint8` Holdridge Life Zones classification (`0`, `1`–`38`).
+  - `climate/3.rasters/` — 654 big-endian `uint32` RGBA GeoPNGs (`koeppen_geiger_<year>.png`, `trewartha_<year>.png`, `holdridge_lifezones_<year>.png`).
+  - [`climate/README.md`](climate/README.md) — Complete specification of all three integer classification schemes, thresholds, downscaling methodology, and citations.
 
 ## Sources/Attribution.
 

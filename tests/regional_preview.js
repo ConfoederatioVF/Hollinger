@@ -5,7 +5,7 @@ let path = require("node:path");
 
 let sharp = require("sharp");
 
-let GeoGridUtils = require("../lib/GeoGridUtils");
+let GeoGridUtils = require("../core/GeoGridUtils");
 
 /**
  * Renders contact sheets of zoomed regional crops in the video palette for visual verification.
@@ -22,7 +22,7 @@ class RegionalPreview {
     let cfg = GeoGridUtils.loadConfig("model_config.json5");
     let rcfg = GeoGridUtils.loadConfig("render_config.json5");
     let cell_area = GeoGridUtils.computeCellAreaByRow(cfg.grid);
-    let paths = GeoGridUtils.resolvePaths();
+    let paths = GeoGridUtils.resolvePaths("landarea");
     let name = argv[0];
     let lat_min = parseFloat(argv[1]);
     let lat_max = parseFloat(argv[2]);

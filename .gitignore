@@ -1,6 +1,13 @@
-landarea_Hollinger.nc
-landarea_Hollinger.nc
+*.nc
 node_modules
-raw_sources
-
+*/1.raw_data
 *.i16
+*.f32
+*.geojson
+*.mp4
+*.npz
+*.png
+*.pyc
+tests/
+tests/.stop_hooks/*.lock.json
+tests/diagnostics/*/spot_checks

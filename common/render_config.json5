@@ -1,0 +1,613 @@
+{
+  //Utilitarian 4K Equal Earth QBAM Animation Configuration
+  //Edit this file freely and run:
+  //  node landarea/pipeline/G_render_animation.js --preview-years -10000,-6000,0,1950,2025
+  //to inspect still frames in exports/landarea/previews/ before encoding all frames.
+
+  canvas: {
+    width: 3840,
+    height: 2160,
+    //Equal Earth map box margins (px) inside 3840x2160 canvas
+    margin_top: 120,
+    margin_bottom: 100,
+    margin_left: 40,
+    margin_right: 40,
+    //Central meridian (degrees)
+    central_meridian_deg: 0.0,
+    //Bilinear vs nearest sampling when projecting 4320x2160 -> Equal Earth
+    bilinear_sampling: true,
+  },
+
+  //QBAM-inspired utilitarian palette (hex RGB)
+  palette: {
+    //Background outside the Equal Earth globe oval
+    background: "#000000",
+    //Thin utilitarian graticule outline around the Equal Earth globe (set null to disable)
+    globe_border: "#4A5562",
+    globe_border_width_px: 2,
+    //Sea / ocean / lakes / reservoirs / seasonal sea ice (value == 0)
+    sea: "#252F54",
+    //Land (> 0); fractional coastal cells blend sea -> land
+    land_full: "#AEFFB0",
+    land_coastal_blend: true,
+    //Glaciated & permanent year-round floating ice shelves (< 0)
+    glacier_full: "#FFFFE1",
+    glacier_coastal_blend: true,
+  },
+
+  //Top-left year indicator (strictly minimal, Arial 48pt)
+  year_label: {
+    enabled: true,
+    font_family: "Arial",
+    //72 pt at 96 dpi = 96 px (adjust font_size_pt directly to iterate)
+    font_size_pt: 72,
+    dpi: 96,
+    color: "#F2F4F7",
+    x_px: 56,
+    //Vertically centred on the same line as the title (between the frame top and the top of the map)
+    //Internal year 0 represents 1 AD and displays as "1 AD" in the video.
+    //Options: "ad_bc" (10000 BC .. 1 BC, 1 AD .. 2025 AD) or "signed" (-10000 .. -1, 1 .. 2025)
+    display_mode: "ad_bc",
+    display_year_zero_as: "1 AD",
+  },
+
+  //Centred top title, vertically centred between the frame top and the top of the map
+  title: {
+    enabled: true,
+    text: "HOLLINGER//Global Land Surface",
+    color: "#F2F4F7",
+    font_family: "Arial",
+    font_size_pt: 49.5,
+  },
+
+  //Minimal utilitarian colour key (bottom-left outside Equal Earth oval)
+  legend: {
+    enabled: true,
+    x_px: 56,
+    //Distance (px) from the bottom edge of the frame to the bottom of the swatches
+    margin_bottom_px: 56,
+    swatch_width_px: 66,
+    swatch_height_px: 39,
+    item_gap_px: 56,
+    label_gap_px: 18,
+    font_family: "Arial",
+    font_size_pt: 33,
+    text_color: "#D8DEE6",
+    border_color: "#4A5562",
+    items: [
+      { key: "land_full", label: "Land" },
+      { key: "glacier_full", label: "Glaciated/Permanent Ice Shelf" },
+      { key: "sea", label: "Water" },
+    ],
+  },
+
+  //Exact 12 026-frame dual-FPS animation schedule (-10000 .. 2025 inclusive)
+  animation: {
+    start_year: -10000,
+    end_year: 2025,
+    //Year boundary where FPS switches from fps_pre_1ad to fps_from_1ad (internal 0 = 1 AD)
+    fps_switch_year: 0,
+    fps_pre_1ad: 60,
+    fps_from_1ad: 30,
+    //Set true to duplicate frames after 1 AD for constant 60 fps instead of 12 026-frame VFR
+    cfr_60_duplicate_ad: false,
+    output_filename: "landarea_Hollinger_-10000_2025.mp4",
+    video_codec: "libx264",
+    pixel_format: "yuv420p",
+    crf: 18,
+    preset: "medium",
+    workers: 8,
+    schedule: [
+      { id: "10000bc_4000bc", start_year: -10000, end_year: -4001, step_years: 2, fps: 100, chunks: 2 },
+      { id: "4000bc_1ad",     start_year: -4000,  end_year: -1,    step_years: 1, fps: 80,  chunks: 3 },
+      { id: "1ad_1500ad",     start_year: 0,      end_year: 1499,  step_years: 1, fps: 30,  chunks: 1 },
+      { id: "1500ad_1800ad",  start_year: 1500,   end_year: 1799,  step_years: 1, fps: 12,  chunks: 1 },
+      { id: "1800ad_1900ad",  start_year: 1800,   end_year: 1899,  step_years: 1, fps: 4,   chunks: 1 },
+      { id: "1900ad_2025ad",  start_year: 1900,   end_year: 2025,  step_years: 1, fps: 3,   chunks: 1 },
+    ],
+    compression: {
+      target_size_mb: 19.0,
+      max_size_mb: 20.0,
+      suffix: "_compressed",
+      preset: "slow",
+      tune: "animation",
+    },
+  },
+
+  categorical_animations: {
+    ocean_override_rgb: [37, 47, 84],
+    border_clearance_px: 24,
+    edge_margin_x_px: 40,
+    edge_margin_y_px: 24,
+    min_font_size_pt: 24,
+    text_color: "#D8DEE6",
+    swatch_border_color: "#4A5562",
+    swatch_border_width_px: 2,
+    font_family: "Arial",
+    dpi: 96,
+
+    trewartha: {
+      indicator: "climate",
+      config_file: "climate_config.json5",
+      config_key: "trewartha",
+      title_text: "HOLLINGER//Trewartha (Climate)",
+      output_filename: "trewartha_Hollinger_-10000_2025.mp4",
+      preview_prefix: "trewartha",
+      rgb_overrides: {
+        "1": [0, 98, 46],
+        "2": [12, 152, 80],
+        "3": [74, 212, 136],
+        "4": [156, 242, 188],
+      },
+      font_size_pt: 28,
+      swatch_width_px: 48,
+      swatch_height_px: 28,
+      line_height_px: 46,
+      label_gap_px: 14,
+      item_gap_px: 36,
+      group_gap_px: 52,
+      corner_layout: {
+        top_left: {
+          x: 56,
+          y: 215,
+          groups: [
+            {
+              header: "A: Tropical",
+              items: [
+                { id: 1, label: "Ar" },
+                { id: 2, label: "Am" },
+                { id: 3, label: "Aw" },
+                { id: 4, label: "As" },
+              ],
+            },
+          ],
+        },
+        top_right: {
+          x: 3784,
+          y: 215,
+          align_right: true,
+          groups: [
+            {
+              header: "B: Dry",
+              items: [
+                { id: 5, label: "BWh" },
+                { id: 6, label: "BWk" },
+                { id: 7, label: "BSh" },
+                { id: 8, label: "BSk" },
+              ],
+            },
+          ],
+        },
+        bottom_left: {
+          x: 56,
+          y: 1790,
+          groups: [
+            {
+              header: "C: Subtropical",
+              items: [
+                { id: 9, label: "Cs" },
+                { id: 10, label: "Cw" },
+                { id: 11, label: "Cr" },
+              ],
+            },
+          ],
+        },
+        bottom_right: {
+          x: 3784,
+          y: 1835,
+          align_right: true,
+          groups: [
+            {
+              header: "D: Temperate",
+              items: [
+                { id: 12, label: "Do" },
+                { id: 13, label: "Dc" },
+              ],
+            },
+          ],
+        },
+        bottom_bar: {
+          x: 56,
+          rows: [
+            {
+              y: 2088,
+              groups: [
+                {
+                  header: "E: Boreal",
+                  items: [
+                    { id: 14, label: "Eo" },
+                    { id: 15, label: "Ec" },
+                  ],
+                },
+                {
+                  header: "F: Polar",
+                  items: [
+                    { id: 16, label: "Ft" },
+                    { id: 17, label: "Fi" },
+                  ],
+                },
+                {
+                  header: null,
+                  items: [
+                    { id: 0, label: "Water" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    koeppen_geiger: {
+      indicator: "climate",
+      config_file: "climate_config.json5",
+      config_key: "koeppen_geiger",
+      title_text: "HOLLINGER//Köppen-Geiger (Climate)",
+      output_filename: "koeppen_geiger_Hollinger_-10000_2025.mp4",
+      preview_prefix: "koeppen_geiger",
+      rgb_overrides: {
+        "1": [0, 104, 50],
+        "2": [18, 164, 86],
+        "3": [92, 218, 142],
+      },
+      font_size_pt: 28,
+      swatch_width_px: 46,
+      swatch_height_px: 28,
+      line_height_px: 45,
+      label_gap_px: 14,
+      item_gap_px: 32,
+      group_gap_px: 48,
+      corner_layout: {
+        top_left: {
+          x: 56,
+          y: 215,
+          groups: [
+            {
+              header: "A: Tropical",
+              items: [
+                { id: 1, label: "Af" },
+                { id: 2, label: "Am" },
+                { id: 3, label: "Aw" },
+              ],
+            },
+          ],
+        },
+        top_right: {
+          x: 3784,
+          y: 215,
+          align_right: true,
+          groups: [
+            {
+              header: "B: Arid",
+              items: [
+                { id: 4, label: "BWh" },
+                { id: 5, label: "BWk" },
+                { id: 6, label: "BSh" },
+                { id: 7, label: "BSk" },
+              ],
+            },
+          ],
+        },
+        bottom_left: {
+          x: 56,
+          y: 1845,
+          columns: 3,
+          col_gap_px: 28,
+          groups: [
+            {
+              header: "C: Temperate",
+              items: [
+                { id: 8, label: "Csa" },
+                { id: 9, label: "Csb" },
+                { id: 10, label: "Csc" },
+                { id: 11, label: "Cwa" },
+                { id: 12, label: "Cwb" },
+                { id: 13, label: "Cwc" },
+                { id: 14, label: "Cfa" },
+                { id: 15, label: "Cfb" },
+                { id: 16, label: "Cfc" },
+              ],
+            },
+          ],
+        },
+        bottom_right: {
+          x: 3784,
+          y: 1885,
+          align_right: true,
+          groups: [
+            {
+              header: "E: Polar",
+              items: [
+                { id: 29, label: "ET" },
+                { id: 30, label: "EF" },
+              ],
+            },
+          ],
+        },
+        bottom_bar: {
+          x: 56,
+          rows: [
+            {
+              y: 2088,
+              groups: [
+                {
+                  header: "D: Continental",
+                  items: [
+                    { id: 17, label: "Dsa" },
+                    { id: 18, label: "Dsb" },
+                    { id: 19, label: "Dsc" },
+                    { id: 20, label: "Dsd" },
+                    { id: 21, label: "Dwa" },
+                    { id: 22, label: "Dwb" },
+                    { id: 23, label: "Dwc" },
+                    { id: 24, label: "Dwd" },
+                    { id: 25, label: "Dfa" },
+                    { id: 26, label: "Dfb" },
+                    { id: 27, label: "Dfc" },
+                    { id: 28, label: "Dfd" },
+                  ],
+                },
+                {
+                  header: null,
+                  items: [
+                    { id: 0, label: "Water" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    anthromes: {
+      indicator: "anthromes",
+      config_file: "anthromes_config.json5",
+      config_key: null,
+      title_text: "HOLLINGER//Anthromes",
+      output_filename: "anthromes_Hollinger_-10000_2025.mp4",
+      preview_prefix: "anthromes",
+      font_size_pt: 26,
+      swatch_width_px: 44,
+      swatch_height_px: 26,
+      line_height_px: 42,
+      label_gap_px: 14,
+      item_gap_px: 36,
+      group_gap_px: 52,
+      corner_layout: {
+        top_left: {
+          x: 56,
+          y: 215,
+          groups: [
+            {
+              header: "Dense Settlements:",
+              items: [
+                { id: 11, label: "Urban" },
+                { id: 12, label: "Mixed settlements" },
+              ],
+            },
+          ],
+        },
+        top_right: {
+          x: 3784,
+          y: 215,
+          align_right: true,
+          groups: [
+            {
+              header: "Croplands:",
+              items: [
+                { id: 31, label: "Residential irrigated" },
+                { id: 32, label: "Residential rainfed" },
+                { id: 33, label: "Populated" },
+                { id: 34, label: "Remote" },
+              ],
+            },
+          ],
+        },
+        bottom_left: {
+          x: 56,
+          y: 1790,
+          groups: [
+            {
+              header: "Villages:",
+              items: [
+                { id: 21, label: "Rice" },
+                { id: 22, label: "Irrigated" },
+                { id: 23, label: "Rainfed" },
+                { id: 24, label: "Pastoral" },
+              ],
+            },
+          ],
+        },
+        bottom_right: {
+          x: 3784,
+          y: 1835,
+          align_right: true,
+          groups: [
+            {
+              header: "Rangelands:",
+              items: [
+                { id: 41, label: "Residential" },
+                { id: 42, label: "Populated" },
+                { id: 43, label: "Remote" },
+              ],
+            },
+          ],
+        },
+        bottom_bar: {
+          x: 56,
+          rows: [
+            {
+              y: 2060,
+              groups: [
+                {
+                  header: "Seminatural:",
+                  items: [
+                    { id: 51, label: "Residential woodlands" },
+                    { id: 52, label: "Populated woodlands" },
+                    { id: 53, label: "Remote woodlands" },
+                    { id: 54, label: "Inhabited drylands" },
+                  ],
+                },
+              ],
+            },
+            {
+              y: 2116,
+              groups: [
+                {
+                  header: "Wildlands:",
+                  items: [
+                    { id: 61, label: "Wild woodlands" },
+                    { id: 62, label: "Wild drylands" },
+                    { id: 63, label: "Ice" },
+                  ],
+                },
+                {
+                  header: null,
+                  items: [
+                    { id: 0, label: "Water" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+
+    holdridge_lifezones: {
+      indicator: "climate",
+      config_file: "climate_config.json5",
+      config_key: "holdridge_lifezones",
+      title_text: "HOLLINGER//Holdridge (Lifezones)",
+      output_filename: "holdridge_lifezones_Hollinger_-10000_2025.mp4",
+      preview_prefix: "holdridge_lifezones",
+      font_size_pt: 24,
+      swatch_width_px: 40,
+      swatch_height_px: 24,
+      line_height_px: 38,
+      label_gap_px: 12,
+      item_gap_px: 30,
+      group_gap_px: 44,
+      corner_layout: {
+        top_left: {
+          x: 56,
+          y: 200,
+          groups: [
+            {
+              header: "Polar & Subpolar:",
+              items: [
+                { id: 1, label: "Polar desert" },
+                { id: 2, label: "Dry tundra" },
+                { id: 3, label: "Moist tundra" },
+                { id: 4, label: "Wet tundra" },
+                { id: 5, label: "Rain tundra" },
+              ],
+            },
+          ],
+        },
+        top_right: {
+          x: 3784,
+          y: 200,
+          align_right: true,
+          groups: [
+            {
+              header: "Boreal:",
+              items: [
+                { id: 6, label: "Desert" },
+                { id: 7, label: "Dry scrub" },
+                { id: 8, label: "Moist forest" },
+                { id: 9, label: "Wet forest" },
+                { id: 10, label: "Rain forest" },
+              ],
+            },
+          ],
+        },
+        bottom_left: {
+          x: 56,
+          y: 1740,
+          groups: [
+            {
+              header: "Cool Temperate:",
+              items: [
+                { id: 11, label: "Desert" },
+                { id: 12, label: "Desert scrub" },
+                { id: 13, label: "Steppe" },
+                { id: 14, label: "Moist forest" },
+                { id: 15, label: "Wet forest" },
+                { id: 16, label: "Rain forest" },
+              ],
+            },
+          ],
+        },
+        bottom_right: {
+          x: 3784,
+          y: 1670,
+          align_right: true,
+          line_height_px: 36,
+          groups: [
+            {
+              header: "Tropical:",
+              items: [
+                { id: 31, label: "Desert" },
+                { id: 32, label: "Desert scrub" },
+                { id: 33, label: "Thorn woodland" },
+                { id: 34, label: "Very dry forest" },
+                { id: 35, label: "Dry forest" },
+                { id: 36, label: "Moist forest" },
+                { id: 37, label: "Wet forest" },
+                { id: 38, label: "Rain forest" },
+              ],
+            },
+          ],
+        },
+        bottom_bar: {
+          x: 56,
+          rows: [
+            {
+              y: 2060,
+              groups: [
+                {
+                  header: "Warm Temperate:",
+                  items: [
+                    { id: 17, label: "Desert" },
+                    { id: 18, label: "Desert scrub" },
+                    { id: 19, label: "Thorn steppe" },
+                    { id: 20, label: "Dry forest" },
+                    { id: 21, label: "Moist forest" },
+                    { id: 22, label: "Wet forest" },
+                    { id: 23, label: "Rain forest" },
+                  ],
+                },
+              ],
+            },
+            {
+              y: 2116,
+              groups: [
+                {
+                  header: "Subtropical:",
+                  items: [
+                    { id: 24, label: "Desert" },
+                    { id: 25, label: "Desert scrub" },
+                    { id: 26, label: "Thorn woodland" },
+                    { id: 27, label: "Dry forest" },
+                    { id: 28, label: "Moist forest" },
+                    { id: 29, label: "Wet forest" },
+                    { id: 30, label: "Rain forest" },
+                  ],
+                },
+                {
+                  header: null,
+                  items: [
+                    { id: 0, label: "Water" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  },
+}
