@@ -34,27 +34,60 @@ As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), H
 
 All rasters are rendered at 4320×2160 resolution (5-arcminute WGS84 Equirectangular) across 218 timesteps from 10000 BC to 2025 AD (`-10000` to `2025`, where `0` = 1 AD).
 
-### Directory Layout.
+**Metadata (float32):**
+- `landarea.nc`: Land/Glacier/Sea surface area (km^2). Land is positive, glaciers are negative (abs. value), and sea is 0.
 
-- `common/` — Shared JSON5 configurations (`model_config.json5`, `climate_config.json5`, `anthromes_config.json5`, `source_manifest.json5`, `render_config.json5`, `hydro_geomorph_basins.json5`, `paleolake_registry.json5`, `reclamation_registry.json5`).
-- `core/` — Shared Node.js and Python utilities (`GeoGridUtils.js`, `NetCDF4Writer.js`, `EqualEarthProjector.js`, `BasinContourEngine.js`, `ArcticHydrologyModel.js`, `HoloceneInfillModel.js`, `ScanlineRasteriser.js`, `hollinger_core.py`).
-- `exports/` — Exported 4K MP4 animations (full and `_compressed` <= 20 MB versions) and preview stills by indicator.
-- `tests/` — Diagnostics, regional previews, audit certificates, and stop-hook lock records.
-- `landarea/` — Dynamic ice-free land area, glaciation, and water pipeline:
-  - [`landarea/landarea.nc`](landarea/landarea.nc) — Signed `float32` estimations of land (`> 0`), glacial coverage (`< 0`), and sea/lakes (`0`) in km² terms. Order of precedence: land area > glaciers > sea/lakes.
-  - `landarea/3.rasters/` — 218 big-endian `float32` RGBA GeoPNGs (`land_area_<year>.png`).
-- `anthromes/` — Dynamic Anthromes 12K classification (Ellis et al., 2020, 2021) coupled with changing `landarea` and Holocene biomes:
-  - [`anthromes/anthromes.nc`](anthromes/anthromes.nc) — Compressed `uint8` NetCDF-4 with canonical integer codes (`0`, `11`–`63`).
-  - `anthromes/3.rasters/` — 218 big-endian `uint32` RGBA GeoPNGs (`anthromes_<year>.png`).
-  - [`anthromes/README.md`](anthromes/README.md) — Complete specification of the integer classification scheme, decision tree, dynamic biome coupling, and citations.
-- `climate/` — Downscaled CCSM3 TraCE-21ka + WorldClim 2.1 + CRU TS 4.10 climate classifications (10000 BC – 2025 AD at 5 arc-minutes):
-  - [`climate/koeppen_geiger.nc`](climate/koeppen_geiger.nc) — Compressed `uint8` Köppen–Geiger classification (`0`, `1`–`30`).
-  - [`climate/trewartha.nc`](climate/trewartha.nc) — Compressed `uint8` Trewartha classification (`0`, `1`–`17`).
-  - [`climate/holdridge_lifezones.nc`](climate/holdridge_lifezones.nc) — Compressed `uint8` Holdridge Life Zones classification (`0`, `1`–`38`).
-  - `climate/3.rasters/` — 654 big-endian `uint32` RGBA GeoPNGs (`koeppen_geiger_<year>.png`, `trewartha_<year>.png`, `holdridge_lifezones_<year>.png`).
-  - [`climate/README.md`](climate/README.md) — Complete specification of all three integer classification schemes, thresholds, downscaling methodology, and citations.
+**Biomes & Climate (int16):**
+
+All biome and climate NetCDF files are encoded as integer classification schemes.
+
+- `anthromes.nc`: Replacement Anthromes12k classifications.
+  - 0: Water
+  - 11: Urban; 12: Mixed settlements
+  - 21: Rice villages; 22: Irrigated villages, 23: Rainfed villages, 24: Pastoral villages
+  - 31: Residential irrigated croplands, 32: Residential rainfed croplands, 33: Populated croplands, 34: Remote croplands
+  - 41: Residential rangelands, 42: Populated rangelands, 43: Remote rangelands
+  - 51: Residential woodlands, 52: Populated woodlands, 53: Remote woodlands, 54: Inhabited drylands
+  - 61: Wild woodlands, 62: Wild drylands, 63: Ice
+- `holdridge_lifezones.nc`: Holdridge lifezones (Biomes).
+  - 0: Water
+  - 1: Polar desert
+  - 2: Subpolar dry tundra, 3: Subpolar moist tundra, 4: Subpolar wet tundra, 5: Subpolar rain tundra
+  - 6: Boreal desert, 7: Boreal dry scrub, 8: Boreal moist forest, 9: Boreal wet forest, 10: Boreal rain forest
+  - 11: Cool temperate desert, 12: Cool temperate desert scrub, 13: Cool temperate steppe, 14: Cool temperate moist forest, 15: Cool temperate wet forest, 16: Cool temperate rain forest
+  - 17: Warm temperate desert, 18: Warm temperate desert scrub, 19: Warm temperate thorn steppe, 20: Warm temperate dry forest, 21: Warm temperate moist forest, 22: Warm temperate wet forest, 23: Warm temperate rain forest
+  - 24: Subtropical desert, 25: Subtropical desert scrub, 26: Subtropical thorn woodland, 27: Subtropical dry forest, 28: Subtropical moist forest, 29: Subtropical wet forest, 30: Subtropical rain forest
+  - 31: Tropical desert, 32: Tropical desert scrub, 33: Tropical thorn woodland, 34: Tropical very dry forest, 35: Tropical dry forest, 36: Tropical moist forest, 37: Tropical wet forest, 38: Tropical rain forest
+- `koeppen_geiger.nc`: Köppen-Geiger (Climate).
+  - 0: Water
+  - 1: Af (Tropical, rainforest), 2: Am (Tropical, monsoon), 3: Aw (Tropical, savannah)
+  - 4: BWh (Arid, desert, hot), 5: BWk (Arid, desert, cold), 6: BSh (Arid, steppe, hot), 7: BSk (Arid, steppe, cold)
+  - 8: Csa (Temperate, dry summer, hot summer), 9: Csb (Temperate, dry summer, warm summer), 10: Csc (Temperate, dry summer, cold summer)
+  - 11: Cwa (Temperate, dry winter, hot summer), 12: Cwb (Temperate, dry winter, warm summer), 13: Cwc (Temperate, dry winter, cold summer)
+  - 14: Cfa (Temperate, no dry season, hot summer), 15: Cfb (Temperate, no dry season, warm summer), 16: Cfc (Temperate, no dry season, cold summer)
+  - 17: Dsa (Cold, dry summer, hot summer), 18: Dsb (Cold, dry summer, warm summer), 19: Dsc (Cold, dry summer, cold summer), 20: Dsd (Cold, dry summer, very cold winter)
+  - 21: Dwa (Cold, dry winter, hot summer), 22: Dwb (Cold, dry winter, warm summer), 23: Dwc (Cold, dry winter, cold summer), 24: Dwd (Cold, dry winter, very cold winter)
+  - 25: Dfa (Cold, no dry season, hot summer), 26: Dfb (Cold, no dry season, warm summer), 27: Dfc (Cold, no dry season, cold summer), 28: Dfd (Cold, no dry season, very cold winter)
+  - 29: ET (Polar, tundra), 30: EF (Polar, frost)
+- `trewartha.nc`: Trewartha (Climate).
+  - 0: Water
+  - 1: Ar (Tropical wet), 2: Am (Tropical monsoon), 3: Aw (Tropical wet-dry, dry winter), 4: As (Tropical wet-dry, dry summer)
+  - 5: BWh (Subtropical/tropical desert), 6: BWk (Temperate/boreal desert), 7: BSh (Subtropical/tropical steppe), 8: BSk (Temperate/boreal steppe)
+  - 9: Cs (Subtropical dry summer), 10: Cw (Subtropical dry winter), 11: Cr (Subtropical humid)
+  - 12: Do (Temperate oceanic), 13: Dc (Temperate continental)
+  - 14: Eo (Boreal oceanic), 15: Ec (Boreal continental)
+  - 16: Ft (Polar tundra), 17: Fi (Polar ice cap)
 
 ## Sources/Attribution.
+
+<details>
+  <summary>Anthromes (Expand to view sources).</summary>
+
+1. Ellis, E.C., Beusen, A.H.W., & Klein Goldewijk, K. (2020). Anthropogenic biomes: 10,000 BCE to 2015 CE. *Land*, 9(5), 129.
+2. Ellis, E.C., Gauthier, N., Klein Goldewijk, K., et al. (2021). People have shaped most of terrestrial nature for at least 12,000 years. *PNAS*, 118(17), e2023483118.
+3. Klein Goldewijk, K., et al. HYDE 3.5 historical population and land-use database.
+  
+</details>
 
 <details>
   <summary>Land area (Expand to view sources).</summary>
