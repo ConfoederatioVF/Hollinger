@@ -32,7 +32,7 @@ As a sub-dataset of [Velkscala](https://github.com/ConfoederatioVF/Velkscala), H
 
 ## File Structure.
 
-All rasters are rendered at 4320×2160 resolution (5-arcminute WGS84 Equirectangular) across 218 timesteps from 10000 BC to 2025 AD (`-10000` to `2025`, where `0` = 1 AD).
+All rasters are rendered at 4320x2160 (WGS84 Equirectangular), with 100-year timesteps from 10000BC-1700AD (where 0 is 1AD), 10-year timesteps from 1700AD-1950AD, and annual timesteps since to 2025AD.
 
 **Metadata (float32):**
 - `landarea.nc`: Land/Glacier/Sea surface area (km^2). Land is positive, glaciers are negative (abs. value), and sea is 0.
