@@ -83,9 +83,53 @@ All biome and climate NetCDF files are encoded as integer classification schemes
 <details>
   <summary>Anthromes (Expand to view sources).</summary>
 
-1. Ellis, E.C., Beusen, A.H.W., & Klein Goldewijk, K. (2020). Anthropogenic biomes: 10,000 BCE to 2015 CE. *Land*, 9(5), 129.
-2. Ellis, E.C., Gauthier, N., Klein Goldewijk, K., et al. (2021). People have shaped most of terrestrial nature for at least 12,000 years. *PNAS*, 118(17), e2023483118.
-3. Klein Goldewijk, K., et al. HYDE 3.5 historical population and land-use database.
+1. Ellis, Erle C., et al. “Anthropogenic Biomes: 10,000 BCE to 2015 CE.” *Land*, vol. 9, no. 5, 2020, 129, <https://doi.org/10.3390/land9050129>.
+2. Ellis, Erle C., et al. “People Have Shaped Most of Terrestrial Nature for at Least 12,000 Years.” *Proceedings of the National Academy of Sciences*, vol. 118, no. 17, 2021, e2023483118, <https://doi.org/10.1073/pnas.2023483118>.
+3. Gauthier, Nicolas, et al. *Anthromes 12K DGG (V1) Full Dataset*. Harvard Dataverse, 2021, <https://doi.org/10.7910/DVN/E3H3AK>.
+4. Ramankutty, Navin, and Jonathan A. Foley. “Estimating Historical Changes in Global Land Cover: Croplands from 1700 to 1992.” *Global Biogeochemical Cycles*, vol. 13, no. 4, 1999, pp. 997-1027, <https://doi.org/10.1029/1999GB900046>.
+5. Klein Goldewijk, Kees. *HYDE Data for the Global Carbon Budget (2025)*. Utrecht University - Yoda, 2025, <https://doi.org/10.24416/UU01-F45D44>.
+6. Klein Goldewijk, Kees, et al. “Anthropogenic Land Use Estimates for the Holocene - HYDE 3.2.” *Earth System Science Data*, vol. 9, no. 2, 2017, pp. 927-953, <https://doi.org/10.5194/essd-9-927-2017>.
+7. Schiavina, Marcello, et al. *GHS-POP R2023A - GHS Population Grid Multitemporal (1975-2030)*. European Commission, Joint Research Centre, 2023, <https://doi.org/10.2905/2FF68A52-5B5B-4A22-8F40-C41DA8332CFE>.
+8. Melchiorri, Michele, et al. “The Multi-Temporal and Multi-Dimensional Global Urban Centre Database to Delineate and Analyse World Cities.” *Scientific Data*, vol. 11, no. 1, 2024, 82, <https://doi.org/10.1038/s41597-023-02691-1>.
+9. Marí Rivero, Inés, et al. *GHS-UCDB R2024A - GHS Urban Centre Database 2025*. European Commission, Joint Research Centre, 2024, <https://doi.org/10.2905/1A338BE6-7EAF-480C-9664-3A8ADE88CBCD>.
+10. Gapminder Foundation. *Gapminder Population Dataset (Version 6)*. Gapminder, 2022, <https://www.gapminder.org/data/documentation/gd003/>.
+  
+</details>
+
+<details>
+  <summary>Holdridge Lifezones (Expand to view sources).</summary>
+
+1. Holdridge, Leslie R. “Determination of World Plant Formations from Simple Climatic Data.” *Science*, vol. 105, no. 2727, 1947, pp. 367-368, <https://doi.org/10.1126/science.105.2727.367>.
+2. Holdridge, Leslie R. *Life Zone Ecology*. Rev. ed., Tropical Science Center, 1967, <https://search.worldcat.org/search?q=Life+Zone+Ecology+Holdridge+1967>.
+3. Leemans, Rik. *Possible Changes in Natural Vegetation Patterns Due to Global Warming*. IIASA Working Paper WP-90-08, International Institute for Applied Systems Analysis, 1990, <https://pure.iiasa.ac.at/id/eprint/3443/>.
+4. Lugo, Ariel E., et al. “The Holdridge Life Zones of the Conterminous United States in Relation to Ecosystem Mapping.” *Journal of Biogeography*, vol. 26, no. 5, 1999, pp. 1025-1038, <https://doi.org/10.1046/j.1365-2699.1999.00329.x>.
+5. Liu, Zhengyu, et al. “Transient Simulation of Last Deglaciation with a New Mechanism for Bølling-Allerød Warming.” *Science*, vol. 325, no. 5938, 2009, pp. 310-314, <https://doi.org/10.1126/science.1171041>.
+6. Otto-Bliesner, Bette, and Nan Rosenbloom. *Simulation of the Transient Climate of the Last 21,000 Years (TraCE-21ka)*. NSF National Center for Atmospheric Research, 2021, <https://doi.org/10.5065/CXB5-TV56>.
+7. Fick, Stephen E., and Robert J. Hijmans. “WorldClim 2: New 1-km Spatial Resolution Climate Surfaces for Global Land Areas.” *International Journal of Climatology*, vol. 37, no. 12, 2017, pp. 4302-4315, <https://doi.org/10.1002/joc.5086>.
+8. WorldClim. *WorldClim Version 2.1 Historical Climate Data (1970-2000, 5 Arc-Minute)*. University of California, Davis, 2020, <https://www.worldclim.org/data/worldclim21.html>.
+9. Harris, Ian, et al. “Version 4 of the CRU TS Monthly High-Resolution Gridded Multivariate Climate Dataset.” *Scientific Data*, vol. 7, no. 1, 2020, 109, <https://doi.org/10.1038/s41597-020-0453-3>.
+10. Climatic Research Unit, University of East Anglia. *CRU TS v4.10 Gridded Time-Series Dataset (1901-2025)*. University of East Anglia, 2026, <https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/>.
+11. Tarasov, Lev, et al. “A Data-Calibrated Distribution of Deglacial Chronologies for the North American Ice Complex from Glaciological Modeling.” *Earth and Planetary Science Letters*, vol. 315-316, 2012, pp. 30-40, <https://doi.org/10.1016/j.epsl.2011.09.010>.
+12. Briggs, Robert D., et al. “A Data-Constrained Large Ensemble Analysis of Antarctic Evolution since the Eemian.” *Quaternary Science Reviews*, vol. 103, 2014, pp. 91-115, <https://doi.org/10.1016/j.quascirev.2014.09.003>.
+13. Ivanovic, Ruza F., et al. “Transient Climate Simulations of the Deglaciation 21-9 Thousand Years before Present (Version 1) - PMIP4 Core Experiment Design and Boundary Conditions.” *Geoscientific Model Development*, vol. 9, no. 7, 2016, pp. 2563-2587, <https://doi.org/10.5194/gmd-9-2563-2016>.
+  
+</details>
+
+<details>
+  <summary>Köppen-Geiger (Expand to view sources).</summary>
+
+1. Peel, Murray C., et al. “Updated World Map of the Köppen-Geiger Climate Classification.” *Hydrology and Earth System Sciences*, vol. 11, no. 5, 2007, pp. 1633-1644, <https://doi.org/10.5194/hess-11-1633-2007>.
+2. Beck, Hylke E., et al. “Present and Future Köppen-Geiger Climate Classification Maps at 1-km Resolution.” *Scientific Data*, vol. 5, no. 1, 2018, 180214, <https://doi.org/10.1038/sdata.2018.214>.
+3. Beck, Hylke E., et al. “High-Resolution (1 km) Köppen-Geiger Maps for 1901-2099 Based on Constrained CMIP6 Projections.” *Scientific Data*, vol. 10, no. 1, 2023, 724, <https://doi.org/10.1038/s41597-023-02549-6>.
+4. Liu, Zhengyu, et al. “Transient Simulation of Last Deglaciation with a New Mechanism for Bølling-Allerød Warming.” *Science*, vol. 325, no. 5938, 2009, pp. 310-314, <https://doi.org/10.1126/science.1171041>.
+5. Otto-Bliesner, Bette, and Nan Rosenbloom. *Simulation of the Transient Climate of the Last 21,000 Years (TraCE-21ka)*. NSF National Center for Atmospheric Research, 2021, <https://doi.org/10.5065/CXB5-TV56>.
+6. Fick, Stephen E., and Robert J. Hijmans. “WorldClim 2: New 1-km Spatial Resolution Climate Surfaces for Global Land Areas.” *International Journal of Climatology*, vol. 37, no. 12, 2017, pp. 4302-4315, <https://doi.org/10.1002/joc.5086>.
+7. WorldClim. *WorldClim Version 2.1 Historical Climate Data (1970-2000, 5 Arc-Minute)*. University of California, Davis, 2020, <https://www.worldclim.org/data/worldclim21.html>.
+8. Harris, Ian, et al. “Version 4 of the CRU TS Monthly High-Resolution Gridded Multivariate Climate Dataset.” *Scientific Data*, vol. 7, no. 1, 2020, 109, <https://doi.org/10.1038/s41597-020-0453-3>.
+9. Climatic Research Unit, University of East Anglia. *CRU TS v4.10 Gridded Time-Series Dataset (1901-2025)*. University of East Anglia, 2026, <https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/>.
+10. Tarasov, Lev, et al. “A Data-Calibrated Distribution of Deglacial Chronologies for the North American Ice Complex from Glaciological Modeling.” *Earth and Planetary Science Letters*, vol. 315-316, 2012, pp. 30-40, <https://doi.org/10.1016/j.epsl.2011.09.010>.
+11. Briggs, Robert D., et al. “A Data-Constrained Large Ensemble Analysis of Antarctic Evolution since the Eemian.” *Quaternary Science Reviews*, vol. 103, 2014, pp. 91-115, <https://doi.org/10.1016/j.quascirev.2014.09.003>.
+12. Ivanovic, Ruza F., et al. “Transient Climate Simulations of the Deglaciation 21-9 Thousand Years before Present (Version 1) - PMIP4 Core Experiment Design and Boundary Conditions.” *Geoscientific Model Development*, vol. 9, no. 7, 2016, pp. 2563-2587, <https://doi.org/10.5194/gmd-9-2563-2016>.
   
 </details>
 
@@ -176,5 +220,23 @@ All biome and climate NetCDF files are encoded as integer classification schemes
 82. Stein, Ruediger, et al. “Arctic (Palaeo) River Discharge and Environmental Change: Evidence from the Holocene Kara Sea Sedimentary Record.” *Quaternary Science Reviews*, vol. 23, no. 11-13, 2004, pp. 1485-1511, <https://doi.org/10.1016/j.quascirev.2003.12.004>.
 83. Schwamborn, Georg, et al. “Late Quaternary Sedimentation History of the Lena Delta.” *Quaternary International*, vol. 89, no. 1, 2002, pp. 119-134, <https://doi.org/10.1016/S1040-6182(01)00084-2>.
 84. Nobre, A. D., et al. “Height Above the Nearest Drainage – a Hydrologically Relevant New Terrain Model.” *Journal of Hydrology*, vol. 404, no. 1-2, 2011, pp. 13-29, <https://doi.org/10.1016/j.jhydrol.2011.03.051>.
+  
+</details>
+
+<details>
+  <summary>Trewartha (Expand to view sources).</summary>
+
+1. Trewartha, Glenn T., and Lyle H. Horn. *An Introduction to Climate*. 5th ed., McGraw-Hill, 1980, <https://search.worldcat.org/search?q=An+Introduction+to+Climate+Trewartha+Horn+1980>.
+2. Patton, Clyde P. “A Note on the Classification of Dry Climates in the Köppen System.” *The California Geographer*, vol. 3, 1962, pp. 105-112, <https://hdl.handle.net/10211.2/2248>.
+3. Belda, Michal, et al. “Climate Classification Revisited: From Köppen to Trewartha.” *Climate Research*, vol. 59, no. 1, 2014, pp. 1-13, <https://doi.org/10.3354/cr01204>.
+4. Liu, Zhengyu, et al. “Transient Simulation of Last Deglaciation with a New Mechanism for Bølling-Allerød Warming.” *Science*, vol. 325, no. 5938, 2009, pp. 310-314, <https://doi.org/10.1126/science.1171041>.
+5. Otto-Bliesner, Bette, and Nan Rosenbloom. *Simulation of the Transient Climate of the Last 21,000 Years (TraCE-21ka)*. NSF National Center for Atmospheric Research, 2021, <https://doi.org/10.5065/CXB5-TV56>.
+6. Fick, Stephen E., and Robert J. Hijmans. “WorldClim 2: New 1-km Spatial Resolution Climate Surfaces for Global Land Areas.” *International Journal of Climatology*, vol. 37, no. 12, 2017, pp. 4302-4315, <https://doi.org/10.1002/joc.5086>.
+7. WorldClim. *WorldClim Version 2.1 Historical Climate Data (1970-2000, 5 Arc-Minute)*. University of California, Davis, 2020, <https://www.worldclim.org/data/worldclim21.html>.
+8. Harris, Ian, et al. “Version 4 of the CRU TS Monthly High-Resolution Gridded Multivariate Climate Dataset.” *Scientific Data*, vol. 7, no. 1, 2020, 109, <https://doi.org/10.1038/s41597-020-0453-3>.
+9. Climatic Research Unit, University of East Anglia. *CRU TS v4.10 Gridded Time-Series Dataset (1901-2025)*. University of East Anglia, 2026, <https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/>.
+10. Tarasov, Lev, et al. “A Data-Calibrated Distribution of Deglacial Chronologies for the North American Ice Complex from Glaciological Modeling.” *Earth and Planetary Science Letters*, vol. 315-316, 2012, pp. 30-40, <https://doi.org/10.1016/j.epsl.2011.09.010>.
+11. Briggs, Robert D., et al. “A Data-Constrained Large Ensemble Analysis of Antarctic Evolution since the Eemian.” *Quaternary Science Reviews*, vol. 103, 2014, pp. 91-115, <https://doi.org/10.1016/j.quascirev.2014.09.003>.
+12. Ivanovic, Ruza F., et al. “Transient Climate Simulations of the Deglaciation 21-9 Thousand Years before Present (Version 1) - PMIP4 Core Experiment Design and Boundary Conditions.” *Geoscientific Model Development*, vol. 9, no. 7, 2016, pp. 2563-2587, <https://doi.org/10.5194/gmd-9-2563-2016>.
   
 </details>
