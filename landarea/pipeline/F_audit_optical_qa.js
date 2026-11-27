@@ -191,7 +191,7 @@ class F_AuditOpticalQA {
     let max_roundtrip_err = 0.0;
     let nan_count = 0;
     let out_of_bounds = 0;
-    let sample_years_set = new Set([-10000, -8500, -8000, -7000, -6000, -5500, -4000, -3800, 0, 100, 1500, 1850, 1900, 1950, 1985, 2025]);
+    let sample_years_set = new Set([-10000, -9000, -8900, -8800, -8700, -8600, -8500, -8200, -8000, -7600, -7000, -6000, -5500, -4000, -3800, -500, 0, 100, 800, 1500, 1600, 1700, 1800, 1840, 1850, 1860, 1900, 1910, 1920, 1930, 1950, 1957, 1960, 1968, 1970, 1980, 1985, 2000, 2005, 2015, 2025]);
     let cached_slices = {};
 
     for (let ti = 0; ti < years.length; ti++) {
@@ -292,12 +292,260 @@ class F_AuditOpticalQA {
       };
     };
 
+    //2b. Drained, desiccated, Holocene & artificial lakes audit
+    let countOpenWater = (arg0_slice, arg1_lat_min, arg2_lat_max, arg3_lon_min, arg4_lon_max) => {
+      let r0 = Math.max(0, Math.floor(((90.0 - arg2_lat_max)/180.0)*2160));
+      let r1 = Math.min(2160, Math.ceil(((90.0 - arg1_lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((arg3_lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4320, Math.ceil(((arg4_lon_max + 180.0)/360.0)*4320));
+      let open_px = 0;
+      for (let r = r0; r < r1; r++) {
+        let off = r*4320;
+        for (let c = c0; c < c1; c++)
+          if (arg0_slice[off + c] === 0.0) open_px++;
+      }
+      return open_px;
+    };
+
+    let lake_checks = [
+      { id: "tulare_lake_ca",           box: [35.65, 36.42, -120.10, -119.25], wet_y: 1850,  dry_y: 2025, min_wet: 10, max_dry: 0 },
+      { id: "tulare_lake_ca_1920_1930", box: [35.65, 36.42, -120.10, -119.25], wet_y: 1920,  dry_y: 1930, min_wet: 2,  max_dry: 0 },
+      { id: "buena_vista_kern_ca",      box: [35.05, 35.40, -119.45, -118.88], wet_y: 1850,  dry_y: 2025, min_wet: 2,  max_dry: 0 },
+      { id: "owens_lake_ca",            box: [36.25, 36.60, -118.12, -117.78], wet_y: 1900,  dry_y: 2025, min_wet: 2,  max_dry: 0 },
+      { id: "lake_texcoco_valley",      box: [19.15, 19.90,  -99.30,  -98.78], wet_y: 1500,  dry_y: 2025, min_wet: 8,  max_dry: 1 },
+      { id: "lake_mayran_mx",           box: [25.45, 26.05, -103.20, -102.30], wet_y: 1900,  dry_y: 2025, min_wet: 8,  max_dry: 0 },
+      { id: "lake_poopo_bo",            box: [-19.35,-18.30,  -67.55,  -66.75], wet_y: 2000,  dry_y: 2025, min_wet: 20, max_dry: 0 },
+      { id: "lake_fucino_it",           box: [41.88, 42.10,   13.42,   13.72], wet_y: 1850,  dry_y: 2025, min_wet: 1,  max_dry: 0 },
+      { id: "lake_copais_gr",           box: [38.34, 38.58,   22.85,   23.28], wet_y: 1850,  dry_y: 2025, min_wet: 1,  max_dry: 1 },
+      { id: "lake_karla_gr",            box: [39.38, 39.62,   22.65,   22.88], wet_y: 1950,  dry_y: 2025, min_wet: 2,  max_dry: 0 },
+      { id: "lake_bakhtegan_tashk_ir",  box: [29.10, 29.95,   53.10,   54.40], wet_y: 1950,  dry_y: 2025, min_wet: 8,  max_dry: 0 },
+      { id: "lake_amik_tr",             box: [36.15, 36.55,   36.15,   36.52], wet_y: 1950,  dry_y: 2025, min_wet: 4,  max_dry: 0 },
+      { id: "lake_moeris_fayum_eg",     box: [29.05, 29.70,   30.25,   31.15], wet_y: -4000, dry_y: 2025, min_wet: 20, max_dry: 5 },
+      { id: "lake_faguibine_ml",        box: [16.55, 16.95,   -4.32,   -3.65], wet_y: 1950,  dry_y: 2025, min_wet: 4,  max_dry: 0 },
+      { id: "lop_nur_basin",            box: [39.70, 40.70,   89.80,   91.40], wet_y: 1900,  dry_y: 2025, min_wet: 30, max_dry: 0 },
+      { id: "juyan_lake_cn",            box: [42.10, 42.65,  100.25,  101.40], wet_y: 1950,  dry_y: 2025, min_wet: 6,  max_dry: 1 },
+      { id: "lake_manas_cn",            box: [45.55, 46.10,   85.55,   86.40], wet_y: 1950,  dry_y: 2025, min_wet: 6,  max_dry: 0 },
+      { id: "great_salt_lake_gilbert",  box: [39.95, 42.10, -114.20, -111.88], wet_y: -10000,dry_y: 2025, min_wet: 180,max_dry: 70 },
+      { id: "dead_sea",                 box: [30.90, 31.85,   35.28,   35.65], wet_y: 1950,  dry_y: 2025, min_wet: 10, max_dry: 8 },
+      { id: "salton_sea_artificial",    box: [33.00, 33.65, -116.20, -115.45], wet_y: 1950,  dry_y: 1900, min_wet: 12, max_dry: 0 },
+      { id: "aydar_arnasay_artificial", box: [40.35, 41.35,   65.50,   68.00], wet_y: 1980,  dry_y: 1960, min_wet: 25, max_dry: 0 },
+    ];
+    let lake_audit = [];
+    let lake_failures = 0;
+    for (let li = 0; li < lake_checks.length; li++) {
+      let lc = lake_checks[li];
+      let wet_px = countOpenWater(cached_slices[lc.wet_y], lc.box[0], lc.box[1], lc.box[2], lc.box[3]);
+      let dry_px = countOpenWater(cached_slices[lc.dry_y], lc.box[0], lc.box[1], lc.box[2], lc.box[3]);
+      let ok = (wet_px >= lc.min_wet && dry_px <= lc.max_dry && wet_px > dry_px);
+      if (!ok) lake_failures++;
+      lake_audit.push({ dry_px: dry_px, dry_y: lc.dry_y, id: lc.id, ok: ok, wet_px: wet_px, wet_y: lc.wet_y });
+    }
+
+    //2c. Bohai Sea fictitious-island audit & Netherlands Vos antiquity fidelity audit
+    let countSmallLandComponents = (arg0_slice, arg1_lat_min, arg2_lat_max, arg3_lon_min, arg4_lon_max, arg5_max_size) => {
+      let r0 = Math.max(0, Math.floor(((90.0 - arg2_lat_max)/180.0)*2160));
+      let r1 = Math.min(2160, Math.ceil(((90.0 - arg1_lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((arg3_lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4320, Math.ceil(((arg4_lon_max + 180.0)/360.0)*4320));
+      let lh = r1 - r0;
+      let lw = c1 - c0;
+      let vis = new Uint8Array(lh*lw);
+      let q = new Int32Array(lh*lw);
+      let small_cnt = 0;
+      for (let ly = 0; ly < lh; ly++) {
+        for (let lx = 0; lx < lw; lx++) {
+          let li = ly*lw + lx;
+          if (vis[li] === 1 || arg0_slice[(r0 + ly)*4320 + c0 + lx] <= 0.05) continue;
+          let qh = 0, qt = 0;
+          vis[li] = 1;
+          q[qt++] = li;
+          for (; qh < qt; ) {
+            let cur = q[qh++];
+            let cy = (cur/lw) | 0;
+            let cx = cur - cy*lw;
+            let nbrs = [[cy, cx - 1], [cy, cx + 1], [cy - 1, cx], [cy + 1, cx]];
+            for (let ni = 0; ni < 4; ni++) {
+              let ny = nbrs[ni][0], nx = nbrs[ni][1];
+              if (ny < 0 || ny >= lh || nx < 0 || nx >= lw) continue;
+              let nli = ny*lw + nx;
+              if (vis[nli] === 0 && arg0_slice[(r0 + ny)*4320 + c0 + nx] > 0.05) {
+                vis[nli] = 1;
+                q[qt++] = nli;
+              }
+            }
+          }
+          if (qt < arg5_max_size) small_cnt++;
+        }
+      }
+      return small_cnt;
+    };
+
+    let meanLandFrac = (arg0_slice, arg1_lat_min, arg2_lat_max, arg3_lon_min, arg4_lon_max) => {
+      let r0 = Math.max(0, Math.floor(((90.0 - arg2_lat_max)/180.0)*2160));
+      let r1 = Math.min(2160, Math.ceil(((90.0 - arg1_lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((arg3_lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4320, Math.ceil(((arg4_lon_max + 180.0)/360.0)*4320));
+      let sum = 0.0, n = 0;
+      for (let r = r0; r < r1; r++) {
+        let inv_a = 1.0/cell_area[r];
+        let off = r*4320;
+        for (let c = c0; c < c1; c++) {
+          sum += Math.min(1.0, Math.max(0.0, arg0_slice[off + c]*inv_a));
+          n++;
+        }
+      }
+      return (n > 0) ? (sum/n) : 0.0;
+    };
+
+    let bohai_years = [-4000, 0, 1500, 1900];
+    let bohai_audit = {};
+    let bohai_failures = 0;
+    for (let bi = 0; bi < bohai_years.length; bi++) {
+      let by = bohai_years[bi];
+      let cnt = countSmallLandComponents(cached_slices[by], 36.8, 40.0, 116.5, 120.4, 30);
+      bohai_audit[by] = cnt;
+      if (cnt > 0) bohai_failures++;
+    }
+
+    let nl_100_ij = meanLandFrac(cached_slices[100], 52.4, 53.0, 5.0, 5.7);
+    let nl_100_ze = meanLandFrac(cached_slices[100], 51.35, 51.9, 3.5, 4.3);
+    let nl_1850_ij = meanLandFrac(cached_slices[1850], 52.4, 53.0, 5.0, 5.7);
+    let nl_1950_ij = meanLandFrac(cached_slices[1950], 52.4, 53.0, 5.0, 5.7);
+    let nl_2025_ij = meanLandFrac(holl_2025, 52.4, 53.0, 5.0, 5.7);
+    let nl_ok = (nl_100_ij >= 0.50 && nl_100_ze >= 0.68 && nl_1850_ij < 0.25 && nl_1950_ij > nl_1850_ij && nl_2025_ij > nl_1950_ij);
+
+    let polder_metrics = {
+      enkhuizen_2025: Number(meanLandFrac(holl_2025, 52.67, 52.74, 5.25, 5.32).toFixed(3)),
+      goeree_2025: Number(meanLandFrac(holl_2025, 51.75, 51.83, 3.92, 4.00).toFixed(3)),
+      haarlemmermeer_1700: Number(meanLandFrac(cached_slices[1700], 52.23, 52.36, 4.60, 4.78).toFixed(3)),
+      haarlemmermeer_1840: Number(meanLandFrac(cached_slices[1840], 52.23, 52.36, 4.60, 4.78).toFixed(3)),
+      haarlemmermeer_1860: Number(meanLandFrac(cached_slices[1860], 52.23, 52.36, 4.60, 4.78).toFixed(3)),
+      lauwersmeer_1950: Number(meanLandFrac(cached_slices[1950], 53.34, 53.41, 6.18, 6.32).toFixed(3)),
+      lauwersmeer_1970: Number(meanLandFrac(cached_slices[1970], 53.34, 53.41, 6.18, 6.32).toFixed(3)),
+      lelystad_2025: Number(meanLandFrac(holl_2025, 52.50, 52.58, 5.42, 5.50).toFixed(3)),
+      maasvlakte2_2005: Number(meanLandFrac(cached_slices[2005], 51.93, 51.99, 3.93, 4.00).toFixed(3)),
+      maasvlakte2_2015: Number(meanLandFrac(cached_slices[2015], 51.93, 51.99, 3.93, 4.00).toFixed(3)),
+      nh_golden_1500: Number(meanLandFrac(cached_slices[1500], 52.50, 52.66, 4.78, 4.98).toFixed(3)),
+      nh_golden_1600: Number(meanLandFrac(cached_slices[1600], 52.50, 52.66, 4.78, 4.98).toFixed(3)),
+      nh_golden_1700: Number(meanLandFrac(cached_slices[1700], 52.50, 52.66, 4.78, 4.98).toFixed(3)),
+      nop_1930: Number(meanLandFrac(cached_slices[1930], 52.66, 52.82, 5.60, 5.90).toFixed(3)),
+      nop_1950: Number(meanLandFrac(cached_slices[1950], 52.66, 52.82, 5.60, 5.90).toFixed(3)),
+      oflevo_1950: Number(meanLandFrac(cached_slices[1950], 52.45, 52.57, 5.45, 5.80).toFixed(3)),
+      oflevo_1957: Number(meanLandFrac(cached_slices[1957], 52.45, 52.57, 5.45, 5.80).toFixed(3)),
+      urk_west_nop_2025: Number(meanLandFrac(holl_2025, 52.62, 52.80, 5.60, 5.66).toFixed(3)),
+      wieringer_1920: Number(meanLandFrac(cached_slices[1920], 52.76, 52.90, 4.93, 5.08).toFixed(3)),
+      wieringer_1930: Number(meanLandFrac(cached_slices[1930], 52.76, 52.90, 4.93, 5.08).toFixed(3)),
+      zflevo_1957: Number(meanLandFrac(cached_slices[1957], 52.32, 52.42, 5.18, 5.48).toFixed(3)),
+      zflevo_1968: Number(meanLandFrac(cached_slices[1968], 52.32, 52.42, 5.18, 5.48).toFixed(3)),
+    };
+    let nl_polders_ok = (
+      polder_metrics.haarlemmermeer_1700 < 0.55 &&
+      polder_metrics.haarlemmermeer_1840 < 0.55 &&
+      polder_metrics.haarlemmermeer_1860 >= 0.85 &&
+      polder_metrics.nh_golden_1500 < 0.65 &&
+      polder_metrics.nh_golden_1600 < 0.65 &&
+      polder_metrics.nh_golden_1700 >= 0.90 &&
+      polder_metrics.wieringer_1920 < 0.25 &&
+      polder_metrics.wieringer_1930 >= 0.80 &&
+      polder_metrics.nop_1930 < 0.25 &&
+      polder_metrics.nop_1950 >= 0.80 &&
+      polder_metrics.urk_west_nop_2025 >= 0.45 &&
+      polder_metrics.oflevo_1950 < 0.15 &&
+      polder_metrics.oflevo_1957 >= 0.80 &&
+      polder_metrics.zflevo_1957 < 0.20 &&
+      polder_metrics.zflevo_1968 >= 0.75 &&
+      polder_metrics.lauwersmeer_1950 < 0.25 &&
+      polder_metrics.lauwersmeer_1970 >= 0.55 &&
+      polder_metrics.maasvlakte2_2005 < 0.05 &&
+      polder_metrics.maasvlakte2_2015 >= 0.20 &&
+      polder_metrics.lelystad_2025 >= 0.35 &&
+      polder_metrics.enkhuizen_2025 >= 0.25 &&
+      polder_metrics.goeree_2025 >= 0.35
+    );
+
+    let oj_years = [-9000, -8900, -8800, -8700, -8600];
+    let oj_counts = {};
+    for (let oi = 0; oi < oj_years.length; oi++) {
+      let oy = oj_years[oi];
+      oj_counts[oy] = countOpenWater(cached_slices[oy], 47.8, 51.5, -81.5, -76.0);
+    }
+    let oj_ok = (
+      oj_counts[-8800] >= 150 &&
+      oj_counts[-8700] >= 250 &&
+      oj_counts[-8700] >= oj_counts[-8900]*0.8 &&
+      oj_counts[-8600] >= oj_counts[-8700]*0.85
+    );
+
+    let maxHorizEdgeRun = (arg0_slice, arg1_lat_min, arg2_lat_max, arg3_lon_min, arg4_lon_max, arg5_mode) => {
+      let r0 = Math.max(1, Math.floor(((90.0 - arg2_lat_max)/180.0)*2160));
+      let r1 = Math.min(2158, Math.ceil(((90.0 - arg1_lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((arg3_lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4319, Math.ceil(((arg4_lon_max + 180.0)/360.0)*4320));
+      let max_run = 0;
+      for (let r = r0; r < r1; r++) {
+        let run = 0;
+        let off = r*4320;
+        let noff = (r + 1)*4320;
+        for (let c = c0; c <= c1; c++) {
+          let v = arg0_slice[off + c];
+          let nv = arg0_slice[noff + c];
+          let edge = (arg5_mode === "water") ? (v === 0.0 && nv > 0.0) : (v < 0.0 && nv >= 0.0);
+          run = edge ? (run + 1) : 0;
+          if (run > max_run) max_run = run;
+        }
+      }
+      return max_run;
+    };
+
+    let agassiz_straight_years = [-8600, -8200, -7600, -7000];
+    let agassiz_straight_metrics = {};
+    let agassiz_straight_ok = true;
+    for (let ai = 0; ai < agassiz_straight_years.length; ai++) {
+      let ay = agassiz_straight_years[ai];
+      let sl = cached_slices[ay];
+      let wat_run = maxHorizEdgeRun(sl, 47.0, 51.0, -85.0, -75.0, "water");
+      let ice_run = maxHorizEdgeRun(sl, 47.5, 53.0, -88.0, -76.0, "ice");
+      let ont_dry = meanLandFrac(sl, 45.2, 46.0, -80.0, -78.0);
+      agassiz_straight_metrics[ay] = {
+        max_water_horiz_run: wat_run,
+        max_ice_horiz_run: ice_run,
+        ontario_shield_dry: Number(ont_dry.toFixed(3)),
+      };
+      if (wat_run > 10 || ice_run > 20 || ont_dry <= 0.70) agassiz_straight_ok = false;
+    }
+
     let report = {
+      agassiz_ojibway_straight_line_qa: {
+        metrics_by_year: agassiz_straight_metrics,
+        ok: agassiz_straight_ok,
+      },
+      bohai_fictitious_islands: bohai_audit,
+      drained_and_dynamic_lakes_audit: {
+        checks: lake_audit,
+        failures: lake_failures,
+        total: lake_audit.length,
+      },
       ghs_vs_hyde_vs_hollinger_aligned_1row: evalGhsOverlap(1),
       ghs_vs_hyde_vs_hollinger_raw: evalGhsOverlap(0),
       max_geopng_netcdf_roundtrip_err: max_roundtrip_err,
       nan_or_inf_cells: nan_count,
       netcdf_shape: shape,
+      nl_polders_fidelity: {
+        metrics: polder_metrics,
+        ok: nl_polders_ok,
+      },
+      nl_vos_antiquity_fidelity: {
+        ijsselmeer_100ad: Number(nl_100_ij.toFixed(3)),
+        ijsselmeer_1850ad: Number(nl_1850_ij.toFixed(3)),
+        ijsselmeer_1950ad: Number(nl_1950_ij.toFixed(3)),
+        ijsselmeer_2025ad: Number(nl_2025_ij.toFixed(3)),
+        ok: nl_ok,
+        zeeland_100ad: Number(nl_100_ze.toFixed(3)),
+      },
+      ojibway_continuity: {
+        counts_by_year: oj_counts,
+        ok: oj_ok,
+      },
       out_of_bounds_cells: out_of_bounds,
     };
 
@@ -392,7 +640,85 @@ class F_AuditOpticalQA {
     ];
 
     await this.renderRegionalGrid(path.join(paths.diagnostics_dir, "user_9_issues_audit.png"), issue_panels, cell_area);
-    console.log("[F_audit] Saved global_ghs_vs_hyde_vs_hollinger.png, regional_audit_panels.png, paleo_topology_audit.png & user_9_issues_audit.png.");
+
+    //7. Render dedicated Drained, Desiccated & Artificial Lakes visual audit sheet
+    let lake_panels = [
+      { data: cached_slices[1850], lat_max: 37.5, lat_min: 32.5, lon_max: -115.0, lon_min: -121.0, title: "California 1850 (Tulare + Buena Vista + Owens; No Salton)" },
+      { data: cached_slices[1950], lat_max: 37.5, lat_min: 32.5, lon_max: -115.0, lon_min: -121.0, title: "California 1950 (Tulare/Owens Drained; Salton Sea Present)" },
+      { data: holl_2025, lat_max: 37.5, lat_min: 32.5, lon_max: -115.0, lon_min: -121.0, title: "California 2025" },
+      { data: cached_slices[1500], lat_max: 20.5, lat_min: 18.8, lon_max: -98.2, lon_min: -100.0, title: "Valley of Mexico 1500 (Lake Texcoco Full)" },
+      { data: cached_slices[1850], lat_max: 20.5, lat_min: 18.8, lon_max: -98.2, lon_min: -100.0, title: "Valley of Mexico 1850 (Shrinking)" },
+      { data: holl_2025, lat_max: 20.5, lat_min: 18.8, lon_max: -98.2, lon_min: -100.0, title: "Valley of Mexico 2025 (Drained)" },
+      { data: cached_slices[-4000], lat_max: 30.2, lat_min: 28.8, lon_max: 31.5, lon_min: 29.8, title: "Fayum / Lake Moeris -4000 (Holocene Highstand)" },
+      { data: holl_2025, lat_max: 30.2, lat_min: 28.8, lon_max: 31.5, lon_min: 29.8, title: "Fayum / Birket Qarun 2025" },
+      { data: cached_slices[1900], lat_max: 41.2, lat_min: 39.2, lon_max: 92.0, lon_min: 89.0, title: "Lop Nur 1900 (Active Terminal Lake)" },
+      { data: holl_2025, lat_max: 41.2, lat_min: 39.2, lon_max: 92.0, lon_min: 89.0, title: "Lop Nur 2025 (Desiccated)" },
+      { data: cached_slices[1960], lat_max: 42.0, lat_min: 39.8, lon_max: 68.5, lon_min: 65.0, title: "Aydar-Arnasay 1960 (Dry Pre-1969 Spillway)" },
+      { data: cached_slices[1980], lat_max: 42.0, lat_min: 39.8, lon_max: 68.5, lon_min: 65.0, title: "Aydar-Arnasay 1980 (Impounded)" },
+      { data: cached_slices[2000], lat_max: -17.8, lat_min: -19.8, lon_max: -66.0, lon_min: -68.5, title: "Lake Poopo 2000 (Full)" },
+      { data: holl_2025, lat_max: -17.8, lat_min: -19.8, lon_max: -66.0, lon_min: -68.5, title: "Lake Poopo 2025 (Desiccated)" },
+      { data: cached_slices[-10000], lat_max: 42.4, lat_min: 39.6, lon_max: -111.3, lon_min: -114.5, title: "Great Salt Lake -10000 (Gilbert Highstand)" },
+      { data: cached_slices[1950], lat_max: 42.4, lat_min: 39.6, lon_max: -111.3, lon_min: -114.5, title: "Great Salt Lake 1950" },
+      { data: holl_2025, lat_max: 42.4, lat_min: 39.6, lon_max: -111.3, lon_min: -114.5, title: "Great Salt Lake 2025" },
+      { data: cached_slices[1850], lat_max: 42.6, lat_min: 36.0, lon_max: 37.0, lon_min: 13.0, title: "Fucino, Copais, Karla & Amik 1850" },
+      { data: holl_2025, lat_max: 42.6, lat_min: 36.0, lon_max: 37.0, lon_min: 13.0, title: "Fucino, Copais, Karla & Amik 2025" },
+    ];
+    await this.renderRegionalGrid(path.join(paths.diagnostics_dir, "drained_lakes_audit.png"), lake_panels, cell_area);
+
+    //8. Render dedicated Bohai Sea, Lake Tulare, and Netherlands Antiquity 18-panel audit sheet
+    let btn_panels = [
+      { data: cached_slices[-4000], lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea -4000 (Zero Fictitious Islands)" },
+      { data: cached_slices[0], lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea 1 AD" },
+      { data: cached_slices[1500], lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea 1500 AD" },
+      { data: cached_slices[1900], lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea 1900 AD (SW-Curved Bay)" },
+      { data: cached_slices[1950], lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea 1950 AD (Intermediate Delta)" },
+      { data: holl_2025, lat_max: 40.0, lat_min: 36.8, lon_max: 120.5, lon_min: 116.5, title: "Bohai Sea 2025 AD (Modern)" },
+      { data: cached_slices[1850], lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 1850 (Full)" },
+      { data: cached_slices[1900], lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 1900" },
+      { data: cached_slices[1910], lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 1910" },
+      { data: cached_slices[1920], lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 1920 (Still Visible)" },
+      { data: cached_slices[1930], lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 1930 (Faded Out)" },
+      { data: holl_2025, lat_max: 36.6, lat_min: 35.4, lon_max: -119.1, lon_min: -120.3, title: "Lake Tulare 2025 (Dry)" },
+      { data: cached_slices[-3800], lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands -3800 (Tidal Basins)" },
+      { data: cached_slices[-500], lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands -500 (Closed Peat)" },
+      { data: cached_slices[100], lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands 100 AD (Roman Coast)" },
+      { data: cached_slices[800], lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands 800 AD (Almere/Wadden)" },
+      { data: cached_slices[1500], lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands 1500 AD (Zuiderzee)" },
+      { data: holl_2025, lat_max: 53.8, lat_min: 50.6, lon_max: 7.4, lon_min: 3.1, title: "Netherlands 2025 AD (Modern)" },
+    ];
+    await this.renderRegionalGrid(path.join(paths.diagnostics_dir, "bohai_tulare_nl_audit.png"), btn_panels, cell_area);
+
+    //9. Render dedicated 12-panel Dutch Polder & Historical Reclamation sequence audit
+    let nl_polder_panels = [
+      { data: cached_slices[1500], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1500 (Beemster & Haarlemmermeer Open)" },
+      { data: cached_slices[1600], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1600 (Haarlemmermeer 181 km2 Lake)" },
+      { data: cached_slices[1700], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1700 (Beemster Drained, Haarlemmer Open)" },
+      { data: cached_slices[1800], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1800 (Haarlemmermeer Still Open)" },
+      { data: cached_slices[1840], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1840 (Pre-Haarlemmermeer Pumping)" },
+      { data: cached_slices[1860], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1860 (Haarlemmermeer Drained 1852)" },
+      { data: cached_slices[1920], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1920 (Pre-Zuiderzeewerken)" },
+      { data: cached_slices[1930], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1930 (Wieringermeer Drained)" },
+      { data: cached_slices[1950], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1950 (Noordoostpolder Done)" },
+      { data: cached_slices[1957], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1957 (Oostelijk Flevoland Only)" },
+      { data: cached_slices[1968], lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 1968 (Zuidelijk Flevoland Done)" },
+      { data: holl_2025, lat_max: 53.6, lat_min: 51.3, lon_max: 7.3, lon_min: 3.3, title: "NL 2025 (Lauwersmeer + Maasvlakte II)" },
+    ];
+    await this.renderRegionalGrid(path.join(paths.diagnostics_dir, "nl_polders_audit.png"), nl_polder_panels, cell_area);
+
+    //10. Render zoomed Lake Agassiz-Ojibway diagnostic sheet (-8600, -8200, -7600, -7000)
+    let agassiz_panels = [
+      { data: cached_slices[-8600], lat_max: 54.5, lat_min: 45.5, lon_max: -73.0, lon_min: -95.0, title: "Agassiz-Ojibway -8600 (DEM Watershed + Ice Margin)" },
+      { data: cached_slices[-8200], lat_max: 54.5, lat_min: 45.5, lon_max: -73.0, lon_min: -95.0, title: "Agassiz-Ojibway -8200" },
+      { data: cached_slices[-7600], lat_max: 54.5, lat_min: 45.5, lon_max: -73.0, lon_min: -95.0, title: "Agassiz-Ojibway -7600" },
+      { data: cached_slices[-7000], lat_max: 54.5, lat_min: 45.5, lon_max: -73.0, lon_min: -95.0, title: "Agassiz-Ojibway -7000" },
+    ];
+    await this.renderRegionalGrid(path.join(paths.diagnostics_dir, "agassiz_ojibway_audit.png"), agassiz_panels, cell_area);
+
+    console.log("[F_audit] Saved global_ghs_vs_hyde_vs_hollinger.png, regional_audit_panels.png, paleo_topology_audit.png, user_9_issues_audit.png, drained_lakes_audit.png, bohai_tulare_nl_audit.png, nl_polders_audit.png & agassiz_ojibway_audit.png.");
+    if (lake_failures > 0 || bohai_failures > 0 || !nl_ok || !nl_polders_ok || !oj_ok || !agassiz_straight_ok) {
+      console.error(`[F_audit] FAILED QA checks! lake_failures=${lake_failures}, bohai_failures=${bohai_failures}, nl_ok=${nl_ok}, nl_polders_ok=${nl_polders_ok}, oj_ok=${oj_ok}, agassiz_straight_ok=${agassiz_straight_ok}`);
+      process.exit(1);
+    }
   }
 }
 

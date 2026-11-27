@@ -11,6 +11,7 @@
     worldclim_elev_url: "https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_5m_elev.zip",
     cru_tmp_url: "https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/cruts.2604091129.v4.10/tmp/cru_ts4.10.1901.2025.tmp.dat.nc.gz",
     cru_pre_url: "https://crudata.uea.ac.uk/cru/data/hrg/cru_ts_4.10/cruts.2604091129.v4.10/pre/cru_ts4.10.1901.2025.pre.dat.nc.gz",
+    beyer2020_monthly_url: "https://zenodo.org/records/7388091/files/Beyer2020_monthly_vars_v1.2.2.nc?download=1",
   },
 
   downscaling: {
@@ -28,6 +29,23 @@
     ancient_window_half_yrs: 25,
     modern_window_half_yrs: 15,
     ancient_cutoff_year: 1700,
+  },
+
+  //Regional Africa/Sahara/Arabia Holocene paleoclimate integration using Beyer, Krapp & Manica (2020)
+  //0.5 deg monthly HadCM3 bias-corrected to WorldClim/CRU, seamlessly blended over Africa-Arabia and faded out before 1850 AD.
+  beyer2020_africa_integration: {
+    enabled: true,
+    end_year_cutoff: 1850,
+    fade_start_year: 0,
+    domain_lat_min: -38.0,
+    domain_lat_max: 38.0,
+    domain_lon_min: -24.0,
+    domain_lon_max: 62.0,
+    apron_lat_deg: 6.0,
+    apron_lon_deg: 6.0,
+    precip_ratio_max: 25.0,
+    arid_blend_lo_mm_month: 15.0,
+    arid_blend_hi_mm_month: 50.0,
   },
 
   encoding: {

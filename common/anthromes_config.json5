@@ -60,8 +60,8 @@
     //potveg15.tif woodland/forest classes (1..8) and ice/barren class (15)
     potveg15_tree_ids: [1, 2, 3, 4, 5, 6, 7, 8],
     potveg15_ice_id: 15,
-    //Holdridge Life Zones woodland/forest classes (8-10, 14-16, 20-23, 27-30, 34-38) and polar/ice (1)
-    holdridge_tree_ids: [8, 9, 10, 14, 15, 16, 20, 21, 22, 23, 27, 28, 29, 30, 34, 35, 36, 37, 38],
+    //Holdridge Life Zones woodland/forest classes (8-10, 14-16, 20-23, 28-30, 35-38; excludes 27/34 dry savanna) and polar/ice (1)
+    holdridge_tree_ids: [8, 9, 10, 14, 15, 16, 20, 21, 22, 23, 28, 29, 30, 35, 36, 37, 38],
     holdridge_ice_id: 1,
     biome_anchor_year: 1985,
   },

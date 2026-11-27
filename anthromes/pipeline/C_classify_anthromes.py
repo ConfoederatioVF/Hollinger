@@ -230,21 +230,18 @@ def _classify_timestep(ti: int) -> tuple[int, int, float]:
     irrigation = np.minimum(irrigation, crops)
     used = np.minimum(1.0, crops + grazing + urban)
 
-    # Dynamic trees(t) and ice_barren(t)
+    # Canonical Ellis et al. (2020, 2021) potveg15 woodland mask on valid non-ice land;
+    # cleaned Holdridge tree mask strictly on exposed paleoshelves (~pv_valid) & deglaciated modern-ice margins
     hlz_1d = hlz[land_mask]
     hlz_ice_id = ctx["hlz_ice_id"]
     trees_hlz_1d = np.isin(hlz_1d, ctx["hlz_tree_ids"])
     pv_valid_1d = ctx["potveg15_valid"][land_mask]
     trees_base_1d = ctx["trees_base_modern"][land_mask]
-    trees_hlz_mod_1d = ctx["trees_hlz_modern"][land_mask]
+    ice_mod_1d = ctx["ice_barren_modern"][land_mask]
 
-    trees = np.where(
-      pv_valid_1d,
-      np.where(trees_hlz_1d != trees_hlz_mod_1d, trees_hlz_1d, trees_base_1d),
-      trees_hlz_1d,
-    )
+    trees = np.where(pv_valid_1d & (~ice_mod_1d), trees_base_1d, trees_hlz_1d)
     ice_barren = (
-      (ctx["ice_barren_modern"][land_mask] & (hlz_1d == hlz_ice_id))
+      (ice_mod_1d & (hlz_1d == hlz_ice_id))
       | ((~pv_valid_1d) & (hlz_1d == hlz_ice_id))
     )
     pv_1d = ctx["pot_vill"][land_mask]

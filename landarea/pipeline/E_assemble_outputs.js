@@ -174,14 +174,15 @@ class E_AssembleOutputs {
       }
     }
 
-    //2. Scrub basins driven dynamically by 30" ETOPO contours (Caspian, Aral, Chad, Urmia)
+    //2. Scrub basins driven dynamically by 30" ETOPO contours (Caspian, Aral, Chad, Urmia, Great Salt Lake, Poopo, Dead Sea, etc.)
     for (let bi = 0; bi < hcfg.seeded_basins.length; bi++) {
       let b = hcfg.seeded_basins[bi];
       if (!b.exclude_from_static_natlakes) continue;
-      let r0 = Math.max(0, Math.floor(((90.0 - b.bbox.lat_max)/180.0)*2160));
-      let r1 = Math.min(2160, Math.ceil(((90.0 - b.bbox.lat_min)/180.0)*2160));
-      let c0 = Math.max(0, Math.floor(((b.bbox.lon_min + 180.0)/360.0)*4320));
-      let c1 = Math.min(4320, Math.ceil(((b.bbox.lon_max + 180.0)/360.0)*4320));
+      let eb = b.exclude_bbox ? b.exclude_bbox : b.bbox;
+      let r0 = Math.max(0, Math.floor(((90.0 - eb.lat_max)/180.0)*2160));
+      let r1 = Math.min(2160, Math.ceil(((90.0 - eb.lat_min)/180.0)*2160));
+      let c0 = Math.max(0, Math.floor(((eb.lon_min + 180.0)/360.0)*4320));
+      let c1 = Math.min(4320, Math.ceil(((eb.lon_max + 180.0)/360.0)*4320));
 
       for (let r = r0; r < r1; r++) {
         let off = r*4320;
@@ -224,16 +225,104 @@ class E_AssembleOutputs {
   }
 
   /**
+   * Precomputes and caches pairwise normalised 2D Chamfer transition thresholds in [0, 0.80]
+   * between two consecutive RCE Vos epochs so coasts/lakes advance smoothly outward rather than
+   * following modern-subsided ETOPO bedrock depth.
+   *
+   * @param {Object} arg0_nl_vos
+   * @param {number} arg1_e0_idx
+   * @param {number} arg2_e1_idx
+   *
+   * @returns {Float32Array}
+   */
+  static getVosTransitionThresh (arg0_nl_vos, arg1_e0_idx, arg2_e1_idx) {
+    //Convert from parameters
+    let nl = arg0_nl_vos;
+    let e0_idx = arg1_e0_idx;
+    let e1_idx = arg2_e1_idx;
+
+    //Declare local instance variables
+    if (!nl._sdf_cache) nl._sdf_cache = new Map();
+    let key = `${e0_idx}_${e1_idx}`;
+    if (nl._sdf_cache.has(key)) return nl._sdf_cache.get(key);
+
+    let arr0 = nl.epochs[e0_idx].f_land;
+    let arr1 = nl.epochs[e1_idx].f_land;
+    let dom = nl.domain_frac;
+    let lw = nl.local_w;
+    let lh = nl.local_h;
+    let n = lw*lh;
+    let land_e0 = new Uint8Array(n);
+    let water_e0 = new Uint8Array(n);
+
+    for (let l = 0; l < n; l++) {
+      let d = dom[l];
+      if (d <= 0.05) continue;
+      if (arr0[l]/d < 0.50) water_e0[l] = 1;
+      else land_e0[l] = 1;
+    }
+
+    let d_water = BasinContourEngine.computeChamferDistance(water_e0, lw, lh);
+    let d_land = BasinContourEngine.computeChamferDistance(land_e0, lw, lh);
+    let max_dw = 1.0;
+    let max_dl = 1.0;
+
+    for (let l = 0; l < n; l++) {
+      if (dom[l] <= 0.05) continue;
+      let diff = arr1[l] - arr0[l];
+      if (diff < -0.02 && d_water[l] > max_dw) max_dw = d_water[l];
+      else if (diff > 0.02 && d_land[l] > max_dl) max_dl = d_land[l];
+    }
+
+    let thresh = new Float32Array(n);
+    for (let l = 0; l < n; l++) {
+      if (dom[l] <= 0.05) continue;
+      let diff = arr1[l] - arr0[l];
+      if (diff < -0.02) thresh[l] = 0.80*(d_water[l]/max_dw);
+      else if (diff > 0.02) thresh[l] = 0.80*(d_land[l]/max_dl);
+    }
+
+    nl._sdf_cache.set(key, thresh);
+
+    //Return statement
+    return thresh;
+  }
+
+  /**
+   * Evaluates a clamped linear progress ramp in [0, 1] over [start_year..end_year].
+   *
+   * @param {number} arg0_year
+   * @param {number} arg1_start_year
+   * @param {number} arg2_end_year
+   *
+   * @returns {number}
+   */
+  static evalRamp (arg0_year, arg1_start_year, arg2_end_year) {
+    //Convert from parameters
+    let year = arg0_year;
+    let start_year = arg1_start_year;
+    let end_year = arg2_end_year;
+
+    //Guard clauses
+    if (year <= start_year) return 0.0;
+    if (year >= end_year || end_year <= start_year) return 1.0;
+
+    //Return statement
+    return (year - start_year)/(end_year - start_year);
+  }
+
+  /**
    * Applies official RCE / Vos et al. (2021) Holocene Netherlands maps inside the Dutch coastal domain.
-   * For -9000..1850: interpolates Vos's 12 official paleogeographical epochs.
-   * For 1851..2025: transitions seamlessly from Vos 1850 -> OSM 2025 using exact real shorelines
-   * gated by historical polder completion dates (Wieringermeer 1930, Noordoostpolder 1942,
-   * Oostelijk Flevoland 1957, Zuidelijk Flevoland 1968, Maasvlakte 1965-2013, Lauwersmeer 1969).
+   * - For -9000..1500: SDF-ordered progression across Vos epochs (-9000..1500).
+   * - For 1501..1850: exact Golden Age & 19th-century droogmakerijen dates while keeping Haarlemmermeer (181.3 km2) open water until 1848-1852.
+   * - For 1851..2025: exact historical polder & Delta Works dates (Wieringermeer 1927-30, Afsluitdijk 1927-32, Noordoostpolder 1936-42,
+   *   Oostelijk Flevoland 1950-57, Zuidelijk Flevoland 1959-68 separated by Knardijk, Lauwersmeer 1961-69, IJ-polders 1865-76,
+   *   Maasvlakte I 1965-73, Delta Works 1952-86, Maasvlakte II 2008-13) anchored cleanly to Vos 2000 + OSM Maasvlakte II.
    *
    * @param {Float32Array} arg0_f_land
    * @param {number} arg1_year
    * @param {Object} arg2_nl_vos
-   * @param {Object} arg3_state - Shared assembly state (f_etopo_land_2025, f_land_osm_2025, min_bed_5m).
+   * @param {Object} arg3_state - Shared assembly state (f_etopo_land_2025, f_land_osm_2025, f_natlake_cleaned).
    */
   static applyVosNetherlands (arg0_f_land, arg1_year, arg2_nl_vos, arg3_state) {
     //Convert from parameters
@@ -242,34 +331,38 @@ class E_AssembleOutputs {
     let nl = arg2_nl_vos;
     let st = arg3_state;
 
-    //Guard clause: earlier than -9000 uses full GIA Doggerland emergence
+    //Guard clauses: earlier than -9000 uses full GIA Doggerland emergence
     if (!nl || !nl.epochs || nl.epochs.length === 0) return;
-    if (year < -9000 || year >= 2015) return;
+    if (year < -9000) return;
 
-    let epochs = nl.epochs;
+    //Declare local instance variables
     let dom = nl.domain_frac;
-    let lw = nl.local_w;
+    let epochs = nl.epochs;
+    let hm_arr = (nl.haarlemmermeer_frac && nl.haarlemmermeer_frac.length === dom.length) ? nl.haarlemmermeer_frac : null;
     let lh = nl.local_h;
+    let lw = nl.local_w;
     let r0 = nl.r0;
     let c0 = nl.c0;
 
-    if (year <= 1850) {
-      let e0 = epochs[0];
-      let e1 = epochs[0];
+    if (year <= 1500) {
+      let e0_idx = 0;
+      let e1_idx = 0;
       for (let i = 0; i < epochs.length - 1; i++) {
         if (year >= epochs[i].year && year <= epochs[i + 1].year) {
-          e0 = epochs[i];
-          e1 = epochs[i + 1];
+          e0_idx = i;
+          e1_idx = i + 1;
           break;
         }
       }
 
+      let e0 = epochs[e0_idx];
+      let e1 = epochs[e1_idx];
       let w1 = (e0.year === e1.year) ? 0.0 : (year - e0.year)/(e1.year - e0.year);
       let arr0 = e0.f_land;
       let arr1 = e1.f_land;
-      let gate = this.getVosSpatialGate(nl, st);
-      let min_bed = st.min_bed_5m;
-      let rsl = this.evalCurve(st.vos_rsl_curve_m, year);
+      let use_full_vos = (year >= -5800);
+      let gate = use_full_vos ? null : this.getVosSpatialGate(nl, st);
+      let thresh = (e0_idx !== e1_idx) ? this.getVosTransitionThresh(nl, e0_idx, e1_idx) : null;
 
       for (let ly = 0; ly < lh; ly++) {
         let gy = r0 + ly;
@@ -277,24 +370,18 @@ class E_AssembleOutputs {
         let l_off = ly*lw;
 
         for (let lx = 0; lx < lw; lx++) {
-          let d = dom[l_off + lx];
-          let g = (gate[l_off + lx] >= 0.5) ? 1.0 : 0.0;
+          let l = l_off + lx;
+          let d = dom[l];
+          let g = use_full_vos ? 1.0 : ((gate[l] >= 0.5) ? 1.0 : 0.0);
           if (d <= 0.05 || g <= 0.0) continue;
 
-          //Each cell switches once: flooding when sea level plus ~2 m tidal range reaches its bed, emergence (peat and delta infill) high ground first; the switch completes by the next epoch
-          let a0 = arr0[l_off + lx];
-          let a1 = arr1[l_off + lx];
+          let a0 = arr0[l];
+          let a1 = arr1[l];
           let vos_land = a0;
-          if (Math.abs(a1 - a0) > 0.02) {
-            let z = min_bed[g_off + lx];
-            let switched = (w1 >= 0.999);
-            if (a1 < a0) {
-              switched = switched || (rsl + 2.0 >= z);
-            } else {
-              let z_norm = Math.min(1.0, Math.max(0.0, (z + 25.0)/30.0));
-              switched = switched || (w1 >= (1.0 - z_norm)*0.9 + 0.05);
-            }
-            vos_land = switched ? a1 : a0;
+
+          if (thresh && Math.abs(a1 - a0) > 0.02) {
+            let s = Math.min(1.0, Math.max(0.0, (w1 - thresh[l])/0.20));
+            vos_land = a0 + (a1 - a0)*s;
           }
 
           let cur = f_land[g_off + lx];
@@ -305,23 +392,94 @@ class E_AssembleOutputs {
       return;
     }
 
-    //1851..2014: Exact pixel-level transition from Vos 1850 to OSM 2025 gated by real polder bboxes
+    if (year <= 1850) {
+      let idx1500 = epochs.findIndex((e) => e.year === 1500);
+      let idx1850 = epochs.findIndex((e) => e.year === 1850);
+      if (idx1500 < 0 || idx1850 < 0) return;
+
+      let arr1500 = epochs[idx1500].f_land;
+      let arr1850 = epochs[idx1850].f_land;
+      let thresh = this.getVosTransitionThresh(nl, idx1500, idx1850);
+      let w1 = (year - 1500)/350.0;
+      let p_zijpe = this.evalRamp(year, 1597, 1610);
+      let p_nh_golden = this.evalRamp(year, 1608, 1635);
+      let p_anna = this.evalRamp(year, 1844, 1847);
+      let p_zuidplas = this.evalRamp(year, 1825, 1840);
+      let p_felix_flood = this.evalRamp(year, 1530, 1570);
+      let p_hm_widen = this.evalRamp(year, 1500, 1600);
+      let p_hm_drain = this.evalRamp(year, 1848, 1852);
+
+      for (let ly = 0; ly < lh; ly++) {
+        let gy = r0 + ly;
+        let lat = 90.0 - (gy + 0.5)*(180.0/2160.0);
+        let g_off = gy*4320 + c0;
+        let l_off = ly*lw;
+
+        for (let lx = 0; lx < lw; lx++) {
+          let l = l_off + lx;
+          let d = dom[l];
+          if (d <= 0.05) continue;
+
+          let lon = -180.0 + (c0 + lx + 0.5)*(360.0/4320.0);
+          let a0 = arr1500[l];
+          let a1 = arr1850[l];
+          let hm_f = hm_arr ? hm_arr[l] : 0.0;
+          let vos_land;
+
+          if (hm_f > 0.01) {
+            let a_open = Math.max(0.0, a1 - hm_f);
+            let pre_drain = a0 + (a_open - a0)*p_hm_widen;
+            vos_land = pre_drain + hm_f*p_hm_drain;
+          } else if (Math.abs(a1 - a0) <= 0.02) {
+            vos_land = a0;
+          } else {
+            let prog = Math.min(1.0, Math.max(0.0, (w1 - thresh[l])/0.20));
+            if (a1 > a0) {
+              if (lat >= 52.84 && lat <= 52.92 && lon >= 4.75 && lon <= 4.93) {
+                prog = p_anna;
+              } else if (lat >= 52.73 && lat <= 52.86 && lon >= 4.66 && lon <= 4.92) {
+                prog = p_zijpe;
+              } else if (lat >= 52.45 && lat < 52.73 && lon >= 4.72 && lon <= 5.03) {
+                prog = p_nh_golden;
+              } else if (lat >= 51.92 && lat <= 52.12 && lon >= 4.45 && lon <= 4.72) {
+                prog = p_zuidplas;
+              }
+            } else {
+              if (lat >= 51.34 && lat <= 51.50 && lon >= 4.05 && lon <= 4.28) {
+                prog = p_felix_flood;
+              }
+            }
+            vos_land = a0 + (a1 - a0)*prog;
+          }
+
+          let cur = f_land[g_off + lx];
+          f_land[g_off + lx] = Math.min(1.0, Math.max(0.0, cur*(1.0 - d) + vos_land));
+        }
+      }
+      return;
+    }
+
+    //1851..2025: Exact pixel-level transition from Vos 1850 -> Vos 2000 (+ Maasvlakte II 2008-13)
+    //gated by exact non-overlapping historical project dates (zero HydroLAKES lk>=0.50 coastal erasure!)
     let ep1850 = epochs.find((e) => e.year === 1850);
-    if (!ep1850) return;
+    let ep2000 = epochs.find((e) => e.year === 2000);
+    if (!ep1850 || !ep2000) return;
     let arr1850 = ep1850.f_land;
+    let arr2000 = ep2000.f_land;
 
-    let ramp = (arg0_s, arg1_e) => {
-      if (year <= arg0_s) return 0.0;
-      if (year >= arg1_e) return 1.0;
-      return (year - arg0_s)/(arg1_e - arg0_s);
-    };
-
-    let p_wieringer = ramp(1927, 1930);
-    let p_nop = ramp(1936, 1942);
-    let p_oflevo = ramp(1950, 1957);
-    let p_zflevo = ramp(1959, 1968);
-    let p_maasvlakte = ramp(1965, 2013);
-    let p_general = ramp(1850, 1970);
+    let p_hm_drain = this.evalRamp(year, 1848, 1852);
+    let p_ij = this.evalRamp(year, 1865, 1876);
+    let p_mijdrecht = this.evalRamp(year, 1865, 1877);
+    let p_wieringer = this.evalRamp(year, 1927, 1930);
+    let p_afsluit = this.evalRamp(year, 1927, 1932);
+    let p_nop = this.evalRamp(year, 1936, 1942);
+    let p_oflevo = this.evalRamp(year, 1950, 1957);
+    let p_zflevo = this.evalRamp(year, 1959, 1968);
+    let p_lauwers = this.evalRamp(year, 1961, 1969);
+    let p_maasv1 = this.evalRamp(year, 1965, 1973);
+    let p_maasv2 = this.evalRamp(year, 2008, 2013);
+    let p_delta = this.evalRamp(year, 1952, 1986);
+    let p_other = this.evalRamp(year, 1950, 1985);
 
     for (let ly = 0; ly < lh; ly++) {
       let gy = r0 + ly;
@@ -330,29 +488,50 @@ class E_AssembleOutputs {
       let l_off = ly*lw;
 
       for (let lx = 0; lx < lw; lx++) {
-        let d = dom[l_off + lx];
-        if (d <= 0.2) continue;
+        let l = l_off + lx;
+        let d = dom[l];
+        if (d <= 0.05) continue;
 
+        let g_idx = g_off + lx;
         let lon = -180.0 + (c0 + lx + 0.5)*(360.0/4320.0);
-        let v1850 = arr1850[l_off + lx];
-        let v2025 = f_land[g_off + lx];
-        if (Math.abs(v2025 - v1850) < 0.02) continue;
+        let v1850_base = Math.min(1.0, arr1850[l]/d);
+        let hm_norm = hm_arr ? Math.min(1.0, hm_arr[l]/d) : 0.0;
+        let v1850_yr = Math.max(0.0, v1850_base - hm_norm*(1.0 - p_hm_drain));
+        let v2000 = Math.min(1.0, arr2000[l]/d);
 
-        let prog = p_general;
-        if (lat >= 52.74 && lat <= 52.95 && lon >= 4.86 && lon <= 5.18) {
+        let prog = p_other;
+        let lat_knar = 52.48 - 0.65*(lon - 5.40);
+        if (lat >= 52.73 && lat <= 52.93 && lon >= 4.85 && lon <= 5.18) {
           prog = p_wieringer;
-        } else if (lat >= 52.62 && lat <= 52.87 && lon >= 5.52 && lon <= 6.02) {
+        } else if (lat > 52.93 && lat <= 53.10 && lon >= 4.95 && lon <= 5.50) {
+          prog = p_afsluit;
+        } else if (lat >= 52.60 && lat <= 52.90 && lon >= 5.50 && lon <= 6.08) {
           prog = p_nop;
-        } else if (lat >= 52.43 && lat <= 52.62 && lon >= 5.36 && lon <= 5.96) {
+        } else if (lat >= 52.34 && lat < 52.60 && lon >= 5.38 && lon <= 5.95 && lat >= lat_knar) {
           prog = p_oflevo;
-        } else if (lat >= 52.23 && lat <= 52.49 && lon >= 5.08 && lon <= 5.65) {
+        } else if (lat >= 52.23 && lat < 52.52 && lon >= 5.08 && lon <= 5.64 && lat < lat_knar) {
           prog = p_zflevo;
-        } else if (lat >= 51.88 && lat <= 52.04 && lon >= 3.90 && lon <= 4.20) {
-          prog = p_maasvlakte;
+        } else if (lat >= 53.24 && lat <= 53.44 && lon >= 6.10 && lon <= 6.38) {
+          prog = p_lauwers;
+        } else if (lat >= 51.89 && lat <= 52.02 && lon >= 3.98 && lon <= 4.22) {
+          prog = p_maasv1;
+        } else if (lat >= 52.34 && lat <= 52.50 && lon >= 4.62 && lon <= 5.02) {
+          prog = p_ij;
+        } else if (lat >= 51.92 && lat < 52.34 && lon >= 4.48 && lon <= 5.06) {
+          prog = p_mijdrecht;
+        } else if (lat >= 51.20 && lat <= 51.88 && lon >= 3.40 && lon <= 4.48) {
+          prog = p_delta;
         }
 
-        let target = v1850 + (v2025 - v1850)*prog;
-        f_land[g_off + lx] = Math.min(1.0, Math.max(0.0, v2025*(1.0 - d) + target*d));
+        let target = v1850_yr + (v2000 - v1850_base)*prog;
+        if (lat >= 51.90 && lat <= 52.01 && lon >= 3.90 && lon <= 4.08) {
+          let v_osm_mv2 = Math.max(0.0, st.f_land_osm_2025[g_idx] - st.f_natlake_cleaned[g_idx]);
+          if (v_osm_mv2 > v2000)
+            target += (v_osm_mv2 - v2000)*p_maasv2;
+        }
+
+        let cur = f_land[g_idx];
+        f_land[g_idx] = Math.min(1.0, Math.max(0.0, cur*(1.0 - d) + target*d));
       }
     }
   }
@@ -504,14 +683,10 @@ class E_AssembleOutputs {
           let f_new = pair[1];
           let loss_zero = pair[2];
           let et = st.f_etopo_land_2025[p_idx];
-          if (et > 1e-4) {
-            if (f_new > 0.0) {
-              let loss = Math.min(1.0, f_new/et);
-              f_land[p_idx] *= (1.0 - loss);
-            }
-          } else if (loss_zero > 0.0) {
-            f_land[p_idx] *= (1.0 - loss_zero);
-          }
+          let loss = 0.0;
+          if (et > 1e-4 && f_new > 0.0) loss = Math.min(1.0, f_new/et);
+          if (loss_zero > loss) loss = loss_zero;
+          if (loss > 0.0) f_land[p_idx] *= (1.0 - loss);
         } else {
           let nv = f_land[p_idx] - pair[1];
           f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
@@ -567,11 +742,22 @@ class E_AssembleOutputs {
 
     //6. Subtract cleaned static natural lakes (with GDW reservoirs, Caspian/Aral/Chad/Urmia, and Toshka scrubbed!)
     //   R3-D03: On continental interior pixels where a natural lake covers >=50% of the 5' cell, snap to crisp open water (0.0)
+    //   Inside the Netherlands Vos domain (-5800..2025), scale HydroLAKES by (1 - dom) so modern IJsselmeer/Markermeer never overwrites historical Vos Lake Flevo/Zuiderzee/polders or Vos 2000 shorelines.
     let f_natlake = st.f_natlake_cleaned;
     let f_osm_ref = st.f_land_osm_2025;
+    let nl_vos = (st.nl_vos && year >= -5800) ? st.nl_vos : null;
     for (let i = 0; i < total_px; i++) {
       let lk = f_natlake[i];
       if (lk > 0.0 && f_land[i] > 0.0) {
+        if (nl_vos) {
+          let gy = (i/4320) | 0;
+          let gx = i - gy*4320;
+          if (gy >= nl_vos.r0 && gy < nl_vos.r0 + nl_vos.local_h && gx >= nl_vos.c0 && gx < nl_vos.c0 + nl_vos.local_w) {
+            let d = nl_vos.domain_frac[(gy - nl_vos.r0)*nl_vos.local_w + (gx - nl_vos.c0)];
+            lk *= (1.0 - d);
+            if (lk <= 0.005) continue;
+          }
+        }
         if (lk >= 0.50 && f_osm_ref[i] >= 0.95) {
           f_land[i] = 0.0;
         } else {
@@ -581,19 +767,24 @@ class E_AssembleOutputs {
       }
     }
 
-    //7. Apply extra dated artificial spillway lakes (e.g. Toshka Lakes 1998, Lake Nasser residuals 1964)
+    //7. Apply extra dated artificial spillway lakes (e.g. Toshka Lakes 1998, Lake Nasser residuals 1964, Aydar 1969, Salton Sea 1905)
     for (let ei = 0; ei < st.extra_timed_lakes.length; ei++) {
       let ex = st.extra_timed_lakes[ei];
       if (year >= ex.start_year) {
         for (let k = 0; k < ex.pairs.length; k++) {
           let p_idx = ex.pairs[k][0];
-          let nv = f_land[p_idx] - ex.pairs[k][1];
-          f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+          let wf = ex.pairs[k][1];
+          if (wf >= 0.50 && f_osm_ref[p_idx] >= 0.95) {
+            f_land[p_idx] = 0.0;
+          } else {
+            let nv = f_land[p_idx] - wf;
+            f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+          }
         }
       }
     }
 
-    //8. Apply 30" ETOPO dynamic closed basins (Caspian, Aral South+North, Lake Chad / Mega-Chad, Lake Urmia)
+    //8. Apply 30" ETOPO dynamic closed basins (Caspian, Aral, Chad, Urmia, Tulare, Texcoco, Moeris, Lop Nur, etc.)
     let seeded_keys = Object.keys(st.dem_basins.seeded);
     for (let si = 0; si < seeded_keys.length; si++) {
       let b = st.dem_basins.seeded[seeded_keys[si]];
@@ -603,8 +794,13 @@ class E_AssembleOutputs {
       let pairs = b.level_table[lid].pairs;
       for (let k = 0; k < pairs.length; k++) {
         let p_idx = pairs[k][0];
-        let nv = f_land[p_idx] - pairs[k][1];
-        f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+        let wf = pairs[k][1];
+        if (wf >= 0.50 && f_osm_ref[p_idx] >= 0.95) {
+          f_land[p_idx] = 0.0;
+        } else {
+          let nv = f_land[p_idx] - wf;
+          f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+        }
       }
     }
 
@@ -718,8 +914,13 @@ class E_AssembleOutputs {
           }
 
           if (local_water > 0.0) {
-            let nv = f_land[p_idx] - poly_frac*local_water;
-            f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+            let eff_sub = poly_frac*local_water;
+            if (eff_sub >= 0.50 && f_osm_ref[p_idx] >= 0.95) {
+              f_land[p_idx] = 0.0;
+            } else {
+              let nv = f_land[p_idx] - eff_sub;
+              f_land[p_idx] = (nv > 0.0) ? nv : 0.0;
+            }
           }
         }
       } else if (lk.action === "modern_lake_formed" && water_mult < 1.0) {

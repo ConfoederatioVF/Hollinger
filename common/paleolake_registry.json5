@@ -1,5 +1,7 @@
 {
   //Dynamic natural lakes, Holocene proglacial/pluvial paleolakes & 20th-century endorheic desiccation curves.
+  //Note: Closed-basin drained/desiccated lakes (tulare_lake_ca, lake_texcoco_valley, lop_nur_basin, plus the full global suite)
+  //and salton_sea_1905 are now superseded by authoritative 30" ETOPO 2022 DEM contours and exact HydroLAKES exclusions in hydro_geomorph_basins.json5.
   //Action semantics (relative to 2025 AD HydroLAKES modern lake baseline):
   //  - "historical_water_body": Water during [start_year, end_year], dry land outside (e.g. Aral Sea pre-desiccation, Mega-Lake Chad, Lake Agassiz, Lake Texcoco, Tulare Lake).
   //  - "modern_lake_formed": Water in 2025, dry land prior to start_year (e.g. Salton Sea 1905).

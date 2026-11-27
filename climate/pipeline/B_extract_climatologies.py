@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import re
+import shutil
 import sys
+import time
+import urllib.request
 from pathlib import Path
 
 import netCDF4 as nc
@@ -402,13 +406,153 @@ def build_worldclim_reference(
   print(f"[WorldClim] Saved gap-free 5' reference {out_npz} (ZERO NaNs)")
 
 
+def extract_beyer2020_holocene(cfg: dict, raw_dir: Path, out_npz: Path) -> dict:
+  """Downloads Beyer2020 monthly NetCDF if missing and extracts gap-free Holocene climatologies."""
+  url = str(cfg["sources"]["beyer2020_monthly_url"])
+  nc_path = raw_dir / "Beyer2020_monthly_vars_v1.2.2.nc"
+  nc_path.parent.mkdir(parents=True, exist_ok=True)
+
+  if not nc_path.exists() or nc_path.stat().st_size < 900_000_000:
+    tmp_path = raw_dir / "Beyer2020_monthly_vars_v1.2.2.nc.part"
+    print(f"  [Beyer2020] Downloading {url} -> {nc_path} ...", flush=True)
+    t0 = time.time()
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/8.4.0"})
+    with urllib.request.urlopen(req, timeout=120) as resp, open(tmp_path, "wb") as fout:
+      total = int(resp.headers.get("Content-Length") or 0)
+      downloaded = 0
+      last_pct = -1
+      while True:
+        chunk = resp.read(4 * 1024 * 1024)
+        if not chunk:
+          break
+        fout.write(chunk)
+        downloaded += len(chunk)
+        if total > 0:
+          pct = int((downloaded * 100) // total)
+          if pct >= last_pct + 10:
+            last_pct = pct
+            print(f"    [Beyer2020] {pct:3d}% ({downloaded / 1e6:.1f} / {total / 1e6:.1f} MB)", flush=True)
+    if tmp_path.stat().st_size < 900_000_000:
+      raise RuntimeError(f"Downloaded Beyer2020 file unexpectedly small: {tmp_path.stat().st_size} bytes")
+    shutil.move(str(tmp_path), str(nc_path))
+    print(f"  [Beyer2020] Download complete in {time.time() - t0:.1f}s", flush=True)
+  else:
+    print(f"  [Beyer2020] Using cached {nc_path} ({nc_path.stat().st_size / 1e6:.1f} MB)", flush=True)
+
+  with nc.Dataset(str(nc_path), "r") as ds:
+    vnames = list(ds.variables.keys())
+    lat_name = next(k for k in ("latitude", "lat") if k in vnames)
+    lon_name = next(k for k in ("longitude", "lon") if k in vnames)
+    time_name = "time" if "time" in vnames else next(k for k in vnames if "time" in k.lower())
+
+    raw_lat = np.asarray(ds.variables[lat_name][:], dtype=np.float64)
+    raw_lon = np.asarray(ds.variables[lon_name][:], dtype=np.float64)
+    raw_time = np.asarray(ds.variables[time_name][:], dtype=np.float64)
+    time_units = str(getattr(ds.variables[time_name], "units", ""))
+    print(f"  [Beyer2020] time min={raw_time.min()}, max={raw_time.max()}, len={len(raw_time)}, units={time_units!r}")
+    print(f"  [Beyer2020] sample vars: {[v for v in vnames if '01' in v or v in (lat_name, lon_name, time_name)]}")
+
+    # Normalize time to signed calendar years CE (0 BP = 1950 AD)
+    if raw_time.min() < -20000:
+      bp_signed = raw_time.copy()
+    else:
+      bp_signed = -raw_time.copy()
+    cal_years_all = np.rint(1950.0 + bp_signed).astype(np.int32)
+
+    sel_idx = np.where((cal_years_all >= -11000) & (cal_years_all <= 2000))[0]
+    order = sel_idx[np.argsort(cal_years_all[sel_idx])]
+    years_cal = cal_years_all[order]
+    print(f"  [Beyer2020] Selected {len(years_cal)} Holocene slices: {years_cal.tolist()}")
+
+    flip_lat = bool(raw_lat[0] < raw_lat[-1])
+    lat = raw_lat[::-1].copy() if flip_lat else raw_lat.copy()
+    lon_wrapped = np.where(raw_lon >= 180.0, raw_lon - 360.0, raw_lon)
+    lon_order = np.argsort(lon_wrapped)
+    lon = lon_wrapped[lon_order].copy()
+    nlat, nlon = len(lat), len(lon)
+
+    t_prefix = "temperature_" if "temperature_01" in vnames else "temp_"
+    p_prefix = "precipitation_" if "precipitation_01" in vnames else "prec_"
+    nt = len(order)
+    t_clim = np.empty((nt, 12, nlat, nlon), dtype=np.float32)
+    p_clim = np.empty((nt, 12, nlat, nlon), dtype=np.float32)
+
+    t0_v = np.ma.filled(ds.variables[f"{t_prefix}01"][order[-1], :, :], np.nan).astype(np.float32)
+    t_kelvin = float(np.nanmedian(t0_v)) > 150.0
+    p0_v = np.ma.filled(ds.variables[f"{p_prefix}01"][order[-1], :, :], np.nan).astype(np.float32)
+    print(
+      f"  [Beyer2020] Modern check m01: T median={float(np.nanmedian(t0_v)):.2f} "
+      f"(kelvin={t_kelvin}), P median={float(np.nanmedian(p0_v)):.2f}, P p95={float(np.nanpercentile(p0_v[np.isfinite(p0_v)], 95)):.2f}"
+    )
+
+    for m in range(1, 13):
+      vt = ds.variables[f"{t_prefix}{m:02d}"]
+      vp = ds.variables[f"{p_prefix}{m:02d}"]
+      t_slice = np.ma.filled(vt[order, :, :], np.nan).astype(np.float32)
+      p_slice = np.ma.filled(vp[order, :, :], np.nan).astype(np.float32)
+      if t_kelvin:
+        t_slice = t_slice - 273.15
+      if flip_lat:
+        t_slice = t_slice[:, ::-1, :]
+        p_slice = p_slice[:, ::-1, :]
+      t_slice = t_slice[:, :, lon_order]
+      p_slice = p_slice[:, :, lon_order]
+
+      for ti in range(nt):
+        tm = t_slice[ti]
+        pm = np.maximum(0.0, p_slice[ti])
+        valid_t = np.isfinite(tm)
+        valid_p = np.isfinite(pm)
+        t_clim[ti, m - 1] = inpaint_periodic_2d(np.where(valid_t, tm, 0.0), valid_t, n_smooth=6)
+        p_clim[ti, m - 1] = np.maximum(
+          0.0,
+          inpaint_periodic_2d(np.where(valid_p, pm, 0.0), valid_p, n_smooth=6),
+        )
+
+  ref_idx = int(np.argmin(np.abs(years_cal - 1950)))
+  t_ref = t_clim[ref_idx].copy()
+  p_ref = p_clim[ref_idx].copy()
+  print(f"  [Beyer2020] Reference slice year={int(years_cal[ref_idx])}, lat={lat[0]:.2f}..{lat[-1]:.2f}, lon={lon[0]:.2f}..{lon[-1]:.2f}")
+
+  out_npz.parent.mkdir(parents=True, exist_ok=True)
+  np.savez_compressed(
+    out_npz,
+    years_cal=years_cal,
+    lat=lat.astype(np.float32),
+    lon=lon.astype(np.float32),
+    T_clim=t_clim,
+    P_clim=p_clim,
+    T_ref=t_ref,
+    P_ref=p_ref,
+  )
+  print(f"[Beyer2020] Saved {out_npz} ({nt} timesteps, {nlat}x{nlon}, ZERO NaNs)")
+  return {
+    "years_cal": years_cal,
+    "lat": lat.astype(np.float32),
+    "lon": lon.astype(np.float32),
+    "T_clim": t_clim,
+    "P_clim": p_clim,
+    "T_ref": t_ref,
+    "P_ref": p_ref,
+  }
+
+
 def main() -> None:
+  parser = argparse.ArgumentParser(description="Extract climate pipeline climatologies.")
+  parser.add_argument("--beyer-only", action="store_true", help="Only extract Beyer2020 Holocene climatologies")
+  args = parser.parse_args()
+
   paths = hc.resolve_paths("climate")
   cfg = hc.load_json5("climate_config.json5")
   years = hc.get_timestep_years()
 
   raw_dir = paths["raw_dir"]
   inter_dir = paths["intermediate_dir"]
+
+  if args.beyer_only:
+    print("=== Step B4: Extracting Beyer2020 Holocene climatologies ===")
+    extract_beyer2020_holocene(cfg, raw_dir, inter_dir / "beyer2020_holocene_climatologies.npz")
+    return
 
   print("=== Step B1: Extracting CCSM3 TraCE-21ka climatologies ===")
   ccsm_npz = inter_dir / "ccsm3_climatologies.npz"
@@ -421,6 +565,9 @@ def main() -> None:
   print("=== Step B3: Building gap-free WorldClim 2.1 5' modern reference ===")
   wc_npz = inter_dir / "worldclim_base_5m.npz"
   build_worldclim_reference(cfg, raw_dir / "worldclim", ccsm_data, wc_npz)
+
+  print("=== Step B4: Extracting Beyer2020 Holocene climatologies ===")
+  extract_beyer2020_holocene(cfg, raw_dir, inter_dir / "beyer2020_holocene_climatologies.npz")
 
   print("=== Step B complete ===")
 

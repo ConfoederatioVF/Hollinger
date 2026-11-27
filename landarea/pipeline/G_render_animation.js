@@ -10,6 +10,7 @@ let sharp = require("sharp");
 
 let EqualEarthProjector = require("../../core/EqualEarthProjector");
 let GeoGridUtils = require("../../core/GeoGridUtils");
+let SpatialTransitionMorph = require("../../core/SpatialTransitionMorph");
 
 /**
  * Step G: Utilitarian 4K Equal Earth QBAM Animation Renderer (12 026 frames, -10000 to 2025).
@@ -322,6 +323,10 @@ class G_RenderAnimation {
     };
 
     let k_ptr = 0;
+    let morph_plan = null;
+    let morph_scratch = { grid_to_local: new Int32Array(cfg.grid.width*cfg.grid.height).fill(-1) };
+    let morph_y0 = null;
+    let morph_y1 = null;
     let step_years = job.step_years || 1;
     let total_frames = Math.floor((job.end_year - job.start_year)/step_years) + 1;
     let rendered = 0;
@@ -341,8 +346,13 @@ class G_RenderAnimation {
       } else {
         let left_arr = loadKeyframe(y0);
         let right_arr = loadKeyframe(y1);
+        if (morph_y0 !== y0 || morph_y1 !== y1) {
+          morph_plan = SpatialTransitionMorph.buildPlan(left_arr, right_arr, cfg.grid.width, cfg.grid.height, morph_scratch);
+          morph_y0 = y0;
+          morph_y1 = y1;
+        }
         let t = (yr - y0)/(y1 - y0);
-        slice = this.interpolateSignedSafe(left_arr, right_arr, t, interp_buf);
+        slice = SpatialTransitionMorph.interpolateLandGrid(left_arr, right_arr, morph_plan, t, interp_buf);
       }
 
       projector.projectToRgb(slice, cell_area, pal, frame_rgb);
@@ -399,13 +409,40 @@ class G_RenderAnimation {
     let projector = new EqualEarthProjector(rcfg.canvas, cfg.grid);
     let legend = await this.buildLegendOverlay(rcfg, projector.map_top_px);
     let frame_rgb = new Uint8Array(rcfg.canvas.width*rcfg.canvas.height*3);
+    let interp_buf = new Float32Array(cfg.grid.width*cfg.grid.height);
+    let key_years = GeoGridUtils.getTimestepYears(cfg);
+    let morph_scratch = { grid_to_local: new Int32Array(cfg.grid.width*cfg.grid.height).fill(-1) };
 
     if (!fs.existsSync(preview_dir))
       fs.mkdirSync(preview_dir, { recursive: true });
 
     for (let i = 0; i < preview_years.length; i++) {
       let yr = preview_years[i];
-      let slice = GeoGridUtils.decodeFloat32GeoPNG(path.join(paths.rasters_dir, `${prefix}${yr}.png`)).data;
+      let exact_path = path.join(paths.rasters_dir, `${prefix}${yr}.png`);
+      let slice;
+
+      if (fs.existsSync(exact_path)) {
+        slice = GeoGridUtils.decodeFloat32GeoPNG(exact_path).data;
+      } else {
+        let k_ptr = 0;
+        for (; k_ptr < key_years.length - 2 && key_years[k_ptr + 1] < yr; )
+          k_ptr++;
+        let y0 = key_years[k_ptr];
+        let y1 = key_years[Math.min(key_years.length - 1, k_ptr + 1)];
+        let left_arr = GeoGridUtils.decodeFloat32GeoPNG(path.join(paths.rasters_dir, `${prefix}${y0}.png`)).data;
+
+        if (yr <= y0 || y0 === y1) {
+          slice = left_arr;
+        } else if (yr >= y1) {
+          slice = GeoGridUtils.decodeFloat32GeoPNG(path.join(paths.rasters_dir, `${prefix}${y1}.png`)).data;
+        } else {
+          let right_arr = GeoGridUtils.decodeFloat32GeoPNG(path.join(paths.rasters_dir, `${prefix}${y1}.png`)).data;
+          let morph_plan = SpatialTransitionMorph.buildPlan(left_arr, right_arr, cfg.grid.width, cfg.grid.height, morph_scratch);
+          let t = (yr - y0)/(y1 - y0);
+          slice = SpatialTransitionMorph.interpolateLandGrid(left_arr, right_arr, morph_plan, t, interp_buf);
+        }
+      }
+
       projector.projectToRgb(slice, cell_area, pal, frame_rgb);
 
       if (rcfg.legend.enabled)

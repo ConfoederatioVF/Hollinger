@@ -16,6 +16,7 @@ let sharp = require("sharp");
 let ffmpeg_path = require("ffmpeg-static");
 let EqualEarthProjector = require("./EqualEarthProjector.js");
 let GeoGridUtils = require("./GeoGridUtils.js");
+let SpatialTransitionMorph = require("./SpatialTransitionMorph.js");
 
 let text_width_cache = new Map();
 let ICE_CLASS_IDS = {
@@ -729,31 +730,77 @@ async function renderTargetPreviews (arg0_target_key, arg1_years, arg2_render_cf
   let land_paths = GeoGridUtils.resolvePaths("landarea");
   let land_prefix = model_cfg.encoding.geopng_prefix;
   let ice_class_id = (target_cfg.ice_class_id !== undefined) ? target_cfg.ice_class_id : (ICE_CLASS_IDS[target_key] || 0);
+  let src_w = model_cfg.grid.width;
+  let src_h = model_cfg.grid.height;
+  let n_src = src_w*src_h;
+  let morph_scratch = {
+    grid_to_local: new Int32Array(n_src).fill(-1),
+    grp_map: new Int32Array(n_src),
+    hw_map: new Float32Array(n_src),
+    tau_map: new Float32Array(n_src).fill(-1.0),
+  };
   let timesteps = GeoGridUtils.getTimestepYears(model_cfg);
-
-  for (let i = 0; i < preview_years.length; i++) {
-    let yr = preview_years[i];
-    let nearest_yr = timesteps[0];
-    let best_dist = Math.abs(yr - nearest_yr);
-
-    for (let x = 1; x < timesteps.length; x++) {
-      let d = Math.abs(yr - timesteps[x]);
-
-      if (d < best_dist) {
-        best_dist = d;
-        nearest_yr = timesteps[x];
-      }
-    }
-
-    let png_path = path.join(paths.rasters_dir, `${lookup.geopng_prefix}${nearest_yr}.png`);
-    let land_png_path = path.join(land_paths.rasters_dir, `${land_prefix}${nearest_yr}.png`);
+  let loadPreviewKeyframe = async (arg0_ts_year) => {
+    let ts_year = arg0_ts_year;
+    let png_path = path.join(paths.rasters_dir, `${lookup.geopng_prefix}${ts_year}.png`);
+    let land_png_path = path.join(land_paths.rasters_dir, `${land_prefix}${ts_year}.png`);
     let decoded = await GeoGridUtils.decodeUint32GeoPNG(png_path);
     let land_decoded = GeoGridUtils.decodeFloat32GeoPNG(land_png_path);
-    let frame_rgb = projector.projectCategoricalToRgb(decoded.data, lookup.lut_rgb, bg_rgb, {
+    let rgb = projector.projectCategoricalToRgb(decoded.data, lookup.lut_rgb, bg_rgb, {
       cell_area_by_row: cell_area_by_row,
       ice_class_id: ice_class_id,
       land_km2: land_decoded.data,
     });
+
+    return {
+      classes: new Uint8Array(decoded.data),
+      land: land_decoded.data,
+      rgb: rgb,
+    };
+  };
+
+  for (let i = 0; i < preview_years.length; i++) {
+    let yr = preview_years[i];
+    let ts_idx = 0;
+
+    for (; ts_idx + 1 < timesteps.length && timesteps[ts_idx + 1] <= yr; ) {
+      ts_idx++;
+    }
+
+    let y0 = timesteps[ts_idx];
+    let y1 = (ts_idx + 1 < timesteps.length) ? timesteps[ts_idx + 1] : y0;
+    let kf0 = await loadPreviewKeyframe(y0);
+    let frame_rgb;
+
+    if (y0 === y1 || yr <= y0) {
+      frame_rgb = kf0.rgb;
+    } else if (yr >= y1) {
+      let kf1 = await loadPreviewKeyframe(y1);
+
+      frame_rgb = kf1.rgb;
+    } else {
+      let kf1 = await loadPreviewKeyframe(y1);
+      let src_plan = SpatialTransitionMorph.buildCategoricalPlan(
+        kf0.classes,
+        kf1.classes,
+        kf0.land,
+        kf1.land,
+        src_w,
+        src_h,
+        morph_scratch
+      );
+      let canvas_morph = SpatialTransitionMorph.projectCategoricalPlanToCanvas(
+        src_plan,
+        projector,
+        kf0.rgb,
+        kf1.rgb,
+        morph_scratch
+      );
+      let t = (yr - y0)/(y1 - y0);
+
+      frame_rgb = new Uint8Array(kf0.rgb);
+      SpatialTransitionMorph.applyCanvasMorph(kf0.rgb, kf1.rgb, canvas_morph, t, frame_rgb);
+    }
 
     blitRgbaOntoRgb(
       frame_rgb,
@@ -835,6 +882,15 @@ async function runSegmentWorker () {
   let land_paths = GeoGridUtils.resolvePaths("landarea");
   let land_prefix = model_cfg.encoding.geopng_prefix;
   let ice_class_id = (target_cfg.ice_class_id !== undefined) ? target_cfg.ice_class_id : (ICE_CLASS_IDS[target_key] || 0);
+  let src_w = model_cfg.grid.width;
+  let src_h = model_cfg.grid.height;
+  let n_src = src_w*src_h;
+  let morph_scratch = {
+    grid_to_local: new Int32Array(n_src).fill(-1),
+    grp_map: new Int32Array(n_src),
+    hw_map: new Float32Array(n_src),
+    tau_map: new Float32Array(n_src).fill(-1.0),
+  };
 
   let getProjectedKeyframe = async (arg0_ts_year) => {
     let ts_year = arg0_ts_year;
@@ -858,8 +914,9 @@ async function runSegmentWorker () {
 
       keyframe_cache.delete(oldest_key);
     }
-    keyframe_cache.set(ts_year, rgb);
-    return rgb;
+    let entry = { classes: new Uint8Array(decoded.data), land: land_decoded.data, rgb: rgb };
+    keyframe_cache.set(ts_year, entry);
+    return entry;
   };
 
   let ff_args = [
@@ -885,8 +942,11 @@ async function runSegmentWorker () {
     ff_err += arg0_chunk.toString();
   });
 
-  let ts_idx = 0;
+  let canvas_morph = null;
   let frame_count = 0;
+  let morph_y0 = null;
+  let morph_y1 = null;
+  let ts_idx = 0;
 
   for (let yr = start_year; yr <= end_year; yr += step_y) {
     frame_count++;
@@ -896,20 +956,38 @@ async function runSegmentWorker () {
 
     let y0 = timesteps[ts_idx];
     let y1 = (ts_idx + 1 < timesteps.length) ? timesteps[ts_idx + 1] : y0;
-    let rgb0 = await getProjectedKeyframe(y0);
+    let kf0 = await getProjectedKeyframe(y0);
     let yr_patch = await buildYearLabelPatch(yr, render_cfg, projector.map_top_px);
 
     if (y0 === y1 || yr === y0) {
-      blend_buf.set(rgb0);
+      blend_buf.set(kf0.rgb);
     } else {
       let t = (yr - y0)/(y1 - y0);
-      let w1 = Math.round(t*256);
-      let w0 = 256 - w1;
-      let rgb1 = await getProjectedKeyframe(y1);
+      let kf1 = await getProjectedKeyframe(y1);
 
-      for (let x = 0; x < n_bytes; x++) {
-        blend_buf[x] = (rgb0[x]*w0 + rgb1[x]*w1 + 128) >> 8;
+      if (morph_y0 !== y0 || morph_y1 !== y1) {
+        let src_plan = SpatialTransitionMorph.buildCategoricalPlan(
+          kf0.classes,
+          kf1.classes,
+          kf0.land,
+          kf1.land,
+          src_w,
+          src_h,
+          morph_scratch
+        );
+        canvas_morph = SpatialTransitionMorph.projectCategoricalPlanToCanvas(
+          src_plan,
+          projector,
+          kf0.rgb,
+          kf1.rgb,
+          morph_scratch
+        );
+        morph_y0 = y0;
+        morph_y1 = y1;
       }
+
+      blend_buf.set(kf0.rgb);
+      SpatialTransitionMorph.applyCanvasMorph(kf0.rgb, kf1.rgb, canvas_morph, t, blend_buf);
     }
 
     blitRgbaOntoRgb(blend_buf, frame_w, frame_h, yr_patch.data, yr_patch.width, yr_patch.height, yr_patch.x, yr_patch.y);

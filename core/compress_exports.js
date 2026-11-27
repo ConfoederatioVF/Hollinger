@@ -165,13 +165,21 @@ async function main () {
   let comp_cfg = anim.compression || { target_size_mb: 19.0, max_size_mb: 20.0, suffix: "_compressed", preset: "slow", tune: "animation" };
   let land_paths = GeoGridUtils.resolvePaths("landarea");
   let pass_dir = fs.mkdtempSync(path.join(os.tmpdir(), "hollinger_2pass_"));
-  let targets = [
-    path.join(land_paths.renders_dir, anim.output_filename),
-    path.join(GeoGridUtils.resolvePaths(cat_root.trewartha.indicator).renders_dir, cat_root.trewartha.output_filename),
-    path.join(GeoGridUtils.resolvePaths(cat_root.koeppen_geiger.indicator).renders_dir, cat_root.koeppen_geiger.output_filename),
-    path.join(GeoGridUtils.resolvePaths(cat_root.holdridge_lifezones.indicator).renders_dir, cat_root.holdridge_lifezones.output_filename),
-    path.join(GeoGridUtils.resolvePaths(cat_root.anthromes.indicator).renders_dir, cat_root.anthromes.output_filename),
-  ];
+  let target_map = {
+    landarea: path.join(land_paths.renders_dir, anim.output_filename),
+    trewartha: path.join(GeoGridUtils.resolvePaths(cat_root.trewartha.indicator).renders_dir, cat_root.trewartha.output_filename),
+    koeppen_geiger: path.join(GeoGridUtils.resolvePaths(cat_root.koeppen_geiger.indicator).renders_dir, cat_root.koeppen_geiger.output_filename),
+    holdridge_lifezones: path.join(GeoGridUtils.resolvePaths(cat_root.holdridge_lifezones.indicator).renders_dir, cat_root.holdridge_lifezones.output_filename),
+    anthromes: path.join(GeoGridUtils.resolvePaths(cat_root.anthromes.indicator).renders_dir, cat_root.anthromes.output_filename),
+  };
+  let target_arg = process.argv.find((arg0_a) => arg0_a.startsWith("--target="));
+  let targets = Object.values(target_map);
+
+  if (target_arg) {
+    let key = target_arg.slice(9).trim();
+    if (!target_map[key]) throw new Error(`Unknown compression target '${key}'. Valid: ${Object.keys(target_map).join(", ")}`);
+    targets = [target_map[key]];
+  }
 
   try {
     let results = await Promise.all(

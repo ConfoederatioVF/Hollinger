@@ -414,6 +414,111 @@ class C_BuildPaleoGiaIce {
   }
 
   /**
+   * Breaks flat coarse GLAC-1D zonal grid edges across the southern Laurentide Ice Sheet margin
+   * by smoothly blurring the paleo ice field and modulating the 0.50 ablation front with local
+   * 5' bedrock trough relief and deterministic glacial lobe geometry.
+   *
+   * @param {Float32Array} arg0_f_ice_t
+   * @param {Float32Array} arg1_f_ice_2025
+   * @param {Float32Array} arg2_min_bed_5m
+   * @param {Object} arg3_box
+   */
+  static refineLaurentideIceMargin (arg0_f_ice_t, arg1_f_ice_2025, arg2_min_bed_5m, arg3_box) {
+    //Convert from parameters
+    let f_ice_t = arg0_f_ice_t;
+    let f_ice_2025 = arg1_f_ice_2025;
+    let min_bed_5m = arg2_min_bed_5m;
+    let box = arg3_box;
+
+    //Declare local instance variables
+    let height = 2160;
+    let width = 4320;
+    let r0 = Math.max(1, Math.floor(((90.0 - box.lat_max)/180.0)*height));
+    let r1 = Math.min(height - 2, Math.ceil(((90.0 - box.lat_min)/180.0)*height));
+    let c0 = Math.max(1, Math.floor(((box.lon_min + 180.0)/360.0)*width));
+    let c1 = Math.min(width - 2, Math.ceil(((box.lon_max + 180.0)/360.0)*width));
+    let lh = r1 - r0 + 1;
+    let lw = c1 - c0 + 1;
+    let sepBlur = (arg0_src, arg1_radius) => {
+      let src = arg0_src;
+      let rad = arg1_radius;
+      let tmp = new Float32Array(lw*lh);
+      let dst = new Float32Array(lw*lh);
+      for (let ly = 0; ly < lh; ly++) {
+        let row = ly*lw;
+        for (let lx = 0; lx < lw; lx++) {
+          let sum = 0.0;
+          let cnt = 0;
+          let x0 = Math.max(0, lx - rad);
+          let x1 = Math.min(lw - 1, lx + rad);
+          for (let kx = x0; kx <= x1; kx++) {
+            sum += src[row + kx];
+            cnt++;
+          }
+          tmp[row + lx] = sum/cnt;
+        }
+      }
+      for (let lx = 0; lx < lw; lx++) {
+        for (let ly = 0; ly < lh; ly++) {
+          let sum = 0.0;
+          let cnt = 0;
+          let y0 = Math.max(0, ly - rad);
+          let y1 = Math.min(lh - 1, ly + rad);
+          for (let ky = y0; ky <= y1; ky++) {
+            sum += tmp[ky*lw + lx];
+            cnt++;
+          }
+          dst[ly*lw + lx] = sum/cnt;
+        }
+      }
+      //Return statement
+      return dst;
+    };
+
+    let blur_ice = new Float32Array(lw*lh);
+    let bed_loc = new Float32Array(lw*lh);
+    for (let ly = 0; ly < lh; ly++) {
+      let g_off = (r0 + ly)*width + c0;
+      let l_off = ly*lw;
+      for (let lx = 0; lx < lw; lx++) {
+        let gi = g_off + lx;
+        blur_ice[l_off + lx] = (f_ice_t[gi] >= 0.50) ? 1.0 : 0.0;
+        bed_loc[l_off + lx] = min_bed_5m[gi];
+      }
+    }
+    for (let p = 0; p < 3; p++)
+      blur_ice = sepBlur(blur_ice, 4);
+
+    let z_smooth = sepBlur(bed_loc, 12);
+    z_smooth = sepBlur(z_smooth, 12);
+    let topo_raw = new Float32Array(lw*lh);
+    for (let i = 0; i < lw*lh; i++) {
+      let v = -(bed_loc[i] - z_smooth[i])/140.0;
+      topo_raw[i] = Math.max(-1.0, Math.min(1.0, v));
+    }
+    let topo_mod = sepBlur(topo_raw, 2);
+
+    for (let ly = 0; ly < lh; ly++) {
+      let gy = r0 + ly;
+      let lat_deg = 90.0 - (gy + 0.5)*(180.0/height);
+      let g_off = gy*width + c0;
+      let l_off = ly*lw;
+      for (let lx = 0; lx < lw; lx++) {
+        let gi = g_off + lx;
+        let li = l_off + lx;
+        if (f_ice_2025[gi] > 0.01) continue;
+        let bi = blur_ice[li];
+        if (bi <= 0.02 || bi >= 0.98) continue;
+        let gx = c0 + lx;
+        let lon_deg = -180.0 + (gx + 0.5)*(360.0/width);
+        let lobe = 0.55*Math.sin(lon_deg*1.9 + lat_deg*0.7) + 0.45*Math.cos(lon_deg*3.7 - lat_deg*1.1);
+        let mod = 0.16*topo_mod[li] + 0.14*lobe;
+        f_ice_t[gi] = (bi + mod >= 0.50) ? 1.0 : 0.0;
+      }
+    }
+  }
+
+  /**
    * Performs morphological opening (N passes of 4-neighbour erosion followed by N passes of dilation)
    * on paleo-only ice inside a southern polar sector (wrapping longitude across 180 deg) to prune
    * thin protruding ice claws/hooks while keeping modern f_ice_2025 strictly intact.
@@ -1147,15 +1252,18 @@ class C_BuildPaleoGiaIce {
     if (!fs.existsSync(paleo_dir))
       fs.mkdirSync(paleo_dir, { recursive: true });
 
-    //Check if all paleo slices are already cached (unless --force is passed)
+    //Check if all paleo slices are already cached (unless --force or --force-laurentide-ice is passed)
     let force = process.argv.includes("--force");
+    let force_laurentide = process.argv.includes("--force-laurentide-ice");
     let missing_years = force
       ? paleo_years.slice()
-      : paleo_years.filter((y) => {
-        let c_path = path.join(paleo_dir, `delta_coast_${y}.f32`);
-        let i_path = path.join(paleo_dir, `f_ice_${y}.f32`);
-        return !(fs.existsSync(c_path) && fs.existsSync(i_path));
-      });
+      : (force_laurentide
+        ? paleo_years.filter((y) => y <= -4500)
+        : paleo_years.filter((y) => {
+          let c_path = path.join(paleo_dir, `delta_coast_${y}.f32`);
+          let i_path = path.join(paleo_dir, `f_ice_${y}.f32`);
+          return !(fs.existsSync(c_path) && fs.existsSync(i_path));
+        }));
 
     if (missing_years.length === 0) {
       console.log(`[C_paleo] All ${paleo_years.length} paleo GIA & ice slices already cached.`);
@@ -1594,6 +1702,13 @@ class C_BuildPaleoGiaIce {
 
       //R2-D03a & R2-D03b: Smooth Laurentide/Keewatin margins & seal enclosed interior lakes/slits/channels under ice!
       if (year <= -4500) {
+        this.refineLaurentideIceMargin(f_ice_t, f_ice_2025, min_bed_5m, {
+          lat_max: 64.0,
+          lat_min: 43.0,
+          lon_max: -56.0,
+          lon_min: -112.0,
+        });
+
         this.smoothPaleoIceMargins(f_ice_t, f_ice_2025, {
           lat_max: 82.0,
           lat_min: 43.0,
@@ -1610,6 +1725,13 @@ class C_BuildPaleoGiaIce {
           seed_all_edges: true,
           wrap_lon: false,
         });
+      }
+
+      if (force_laurentide && !force) {
+        GeoGridUtils.writeFloat32Bin(path.join(paleo_dir, `f_ice_${year}.f32`), f_ice_t);
+        if ((yi + 1) % 10 === 0 || yi === 0 || yi === missing_years.length - 1)
+          console.log(`[C_paleo] Processed Laurentide ice ${yi + 1}/${missing_years.length} (year ${year}) in ${((Date.now() - t_slice)/1000).toFixed(2)}s`);
+        continue;
       }
 
       //Step 3b: Paleo ocean connectivity flood-fill (captures marine transgressions like Yoldia/Littorina/Champlain/Tyrrell Seas)

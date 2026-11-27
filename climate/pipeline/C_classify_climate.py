@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import concurrent.futures
 import os
 import shutil
@@ -127,8 +128,13 @@ def classify_koeppen_geiger(
     np.where(p_ssum >= 0.7 * map_ann, 2.0 * mat + 28.0, 2.0 * mat + 14.0),
   )
 
-  is_s = (p_sdry < 40.0) & (p_sdry < (p_wwet / 3.0))
-  is_w = (~is_s) & (p_wdry < (p_swet / 10.0))
+  raw_s = (p_sdry < 40.0) & (p_sdry < (p_wwet / 3.0))
+  raw_w = p_wdry < (p_swet / 10.0)
+  # Peel et al. (2007, p. 1636): when both dry-summer (s) and dry-winter (w) criteria
+  # hold (e.g. monsoonal northern India, Mexico, Sub-Saharan Africa), assign w if total
+  # summer half-year precipitation exceeds winter, and s only when winter >= summer.
+  is_s = raw_s & ((~raw_w) | (p_wsum >= p_ssum))
+  is_w = raw_w & (~is_s)
 
   is_e = t_hot < 10.0
   out = np.where(is_e & (t_hot >= 0.0), 29, out)
@@ -317,7 +323,122 @@ def classify_holdridge(
   return out
 
 
-def _init_worker(shards_dir_str: str) -> None:
+def correct_trace_hudson_bay_artifact(
+  years: np.ndarray,
+  lat: np.ndarray,
+  lon: np.ndarray,
+  t_clim: np.ndarray,
+  p_clim: np.ndarray,
+  z_clim: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+  """Smooths the unphysical TraCE-21ka 8.0-7.6 ka BP (-6000..-5700) dry-soil Hudson Bay heatwave."""
+  yr_list = [int(y) for y in years.tolist()]
+  if -6100 not in yr_list or -5600 not in yr_list:
+    return t_clim, p_clim, z_clim
+
+  i_pre = yr_list.index(-6100)
+  i_post = yr_list.index(-5600)
+  t_out = np.array(t_clim, dtype=np.float32, copy=True)
+  p_out = np.array(p_clim, dtype=np.float32, copy=True)
+  z_out = np.array(z_clim, dtype=np.float32, copy=True)
+
+  lat_arr = np.asarray(lat, dtype=np.float32)[:, None]
+  lon_arr = np.asarray(lon, dtype=np.float32)[None, :]
+
+  w_lat = np.ones_like(lat_arr)
+  w_lat = np.where(lat_arr < 42.0, 0.0, w_lat)
+  w_lat = np.where((lat_arr >= 42.0) & (lat_arr < 50.0), 0.5 * (1.0 - np.cos(np.pi * (lat_arr - 42.0) / 8.0)), w_lat)
+  w_lat = np.where((lat_arr > 74.0) & (lat_arr <= 82.0), 0.5 * (1.0 + np.cos(np.pi * (lat_arr - 74.0) / 8.0)), w_lat)
+  w_lat = np.where(lat_arr > 82.0, 0.0, w_lat)
+
+  w_lon = np.ones_like(lon_arr)
+  w_lon = np.where(lon_arr < -115.0, 0.0, w_lon)
+  w_lon = np.where((lon_arr >= -115.0) & (lon_arr < -105.0), 0.5 * (1.0 - np.cos(np.pi * (lon_arr + 115.0) / 10.0)), w_lon)
+  w_lon = np.where((lon_arr > -62.0) & (lon_arr <= -52.0), 0.5 * (1.0 + np.cos(np.pi * (lon_arr + 62.0) / 10.0)), w_lon)
+  w_lon = np.where(lon_arr > -52.0, 0.0, w_lon)
+
+  w_spat = (w_lat * w_lon).astype(np.float32)
+
+  for y in (-6000, -5900, -5800, -5700):
+    if y not in yr_list:
+      continue
+    iy = yr_list.index(y)
+    alpha = float(y - (-6100)) / float((-5600) - (-6100))
+    t_interp = (1.0 - alpha) * t_clim[i_pre] + alpha * t_clim[i_post]
+    p_interp = (1.0 - alpha) * p_clim[i_pre] + alpha * p_clim[i_post]
+    z_interp = (1.0 - alpha) * z_clim[i_pre] + alpha * z_clim[i_post]
+    t_out[iy] = (1.0 - w_spat[None, :, :]) * t_clim[iy] + w_spat[None, :, :] * t_interp
+    p_out[iy] = (1.0 - w_spat[None, :, :]) * p_clim[iy] + w_spat[None, :, :] * p_interp
+    z_out[iy] = (1.0 - w_spat) * z_clim[iy] + w_spat * z_interp
+
+  return t_out, p_out, z_out
+
+
+def _smoothstep_cos(x: np.ndarray | float, e0: np.ndarray | float, e1: np.ndarray | float) -> np.ndarray:
+  """Smooth cosine ramp clipped cleanly to [0.0, 1.0]."""
+  t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
+  return (0.5 * (1.0 - np.cos(np.pi * t))).astype(np.float32)
+
+
+def apply_beyer2020_africa_integration(
+  y: int,
+  t_m: np.ndarray,
+  p_m: np.ndarray,
+  ctx: dict,
+) -> tuple[np.ndarray, np.ndarray]:
+  """Blends WorldClim-downscaled Beyer et al. (2020) Holocene climatologies over Africa-Arabia for y < end_year_cutoff."""
+  bcfg = ctx["cfg"].get("beyer2020_africa_integration", {})
+  bey = ctx.get("beyer")
+  if not bey or not bcfg.get("enabled", False) or y >= int(bcfg["end_year_cutoff"]):
+    return t_m, p_m
+
+  fade_start = float(bcfg["fade_start_year"])
+  end_cut = float(bcfg["end_year_cutoff"])
+  w_time = 1.0 if float(y) <= fade_start else 1.0 - float(_smoothstep_cos(float(y), fade_start, end_cut))
+  if w_time <= 0.0:
+    return t_m, p_m
+
+  by_yrs = bey["years_cal"]
+  if y <= int(by_yrs[0]):
+    t_b = bey["T_clim"][0]
+    p_b = bey["P_clim"][0]
+  elif y >= int(by_yrs[-1]):
+    t_b = bey["T_clim"][-1]
+    p_b = bey["P_clim"][-1]
+  else:
+    idx = int(np.searchsorted(by_yrs, y, side="right")) - 1
+    alpha = float(y - int(by_yrs[idx])) / float(int(by_yrs[idx + 1]) - int(by_yrs[idx]))
+    t_b = (1.0 - alpha) * bey["T_clim"][idx] + alpha * bey["T_clim"][idx + 1]
+    p_b = (1.0 - alpha) * bey["P_clim"][idx] + alpha * bey["P_clim"][idx + 1]
+
+  sub_lat = bey["sub_lat"]
+  sub_lon = bey["sub_lon"]
+  b_lat = bey["lat"]
+  b_lon = bey["lon"]
+  r0, r1, c0, c1 = bey["r0"], bey["r1"], bey["c0"], bey["c1"]
+
+  dt_beyer_5m = bilinear_upsample_periodic(t_b - bey["T_ref"], b_lat, b_lon, sub_lat, sub_lon)
+  p_beyer_raw = bilinear_upsample_periodic(p_b, b_lat, b_lon, sub_lat, sub_lon)
+
+  t_base_sub = ctx["t_base_5m"][:, r0:r1, c0:c1]
+  p_base_sub = ctx["p_base_5m"][:, r0:r1, c0:c1]
+  p_ref_5m = bey["p_ref_5m"]
+
+  t_beyer_down = t_base_sub + dt_beyer_5m
+  p_dry = p_base_sub * (p_beyer_raw / np.maximum(p_ref_5m, 0.1))
+  p_add = p_base_sub + (p_beyer_raw - p_ref_5m)
+  p_rat = p_base_sub * np.minimum(p_beyer_raw / np.maximum(p_ref_5m, 1.0), float(bcfg["precip_ratio_max"]))
+  w_wet = bey["w_wet_5m"]
+  p_wet = (1.0 - w_wet) * p_add + w_wet * p_rat
+  p_beyer_down = np.maximum(0.0, np.where(p_beyer_raw <= p_ref_5m, p_dry, p_wet))
+
+  w_eff = (np.float32(w_time) * bey["w_spat"])[None, :, :]
+  t_m[:, r0:r1, c0:c1] = (1.0 - w_eff) * t_m[:, r0:r1, c0:c1] + w_eff * t_beyer_down
+  p_m[:, r0:r1, c0:c1] = (1.0 - w_eff) * p_m[:, r0:r1, c0:c1] + w_eff * p_beyer_down
+  return t_m, p_m
+
+
+def _init_worker(shards_dir_str: str, active_keys: tuple[str, ...]) -> None:
   """Initialises per-process read-only climate arrays."""
   paths = hc.resolve_paths("climate")
   cfg = hc.load_json5("climate_config.json5")
@@ -354,10 +475,71 @@ def _init_worker(shards_dir_str: str) -> None:
 
   c_ids, c_log_t, c_log_p = build_holdridge_centroids(cfg)
   hcfg = cfg["holdridge_lifezones"]
+  ccsm_t_corr, ccsm_p_corr, ccsm_z_corr = correct_trace_hudson_bay_artifact(
+    ccsm["years"], ccsm["lat"], ccsm["lon"], ccsm["T_clim"], ccsm["P_clim"], ccsm["Z_clim"]
+  )
+
+  beyer_data = None
+  bcfg = cfg.get("beyer2020_africa_integration", {})
+  beyer_path = inter_dir / "beyer2020_holocene_climatologies.npz"
+  if bcfg.get("enabled", False) and beyer_path.exists():
+    lat_min = float(bcfg["domain_lat_min"])
+    lat_max = float(bcfg["domain_lat_max"])
+    lon_min = float(bcfg["domain_lon_min"])
+    lon_max = float(bcfg["domain_lon_max"])
+    apron_lat = float(bcfg["apron_lat_deg"])
+    apron_lon = float(bcfg["apron_lon_deg"])
+
+    r0 = int(np.where(lat_5m <= lat_max)[0][0])
+    r1 = int(np.where(lat_5m >= lat_min)[0][-1]) + 1
+    c0 = int(np.where(lon_5m >= lon_min)[0][0])
+    c1 = int(np.where(lon_5m <= lon_max)[0][-1]) + 1
+    sub_lat = lat_5m[r0:r1].astype(np.float32)
+    sub_lon = lon_5m[c0:c1].astype(np.float32)
+
+    lat_g = sub_lat[:, None]
+    lon_g = sub_lon[None, :]
+    w_lat = _smoothstep_cos(lat_g, lat_min, lat_min + apron_lat) * (
+      1.0 - _smoothstep_cos(lat_g, lat_max - apron_lat, lat_max)
+    )
+    w_lon = _smoothstep_cos(lon_g, lon_min, lon_min + apron_lon) * (
+      1.0 - _smoothstep_cos(lon_g, lon_max - apron_lon, lon_max)
+    )
+    w_spat = (w_lat * w_lon).astype(np.float32)
+
+    with np.load(beyer_path) as bf:
+      b_lat = np.asarray(bf["lat"], dtype=np.float32)
+      b_lon = np.asarray(bf["lon"], dtype=np.float32)
+      p_ref_arr = np.asarray(bf["P_ref"], dtype=np.float32)
+      p_ref_5m = bilinear_upsample_periodic(p_ref_arr, b_lat, b_lon, sub_lat, sub_lon)
+      w_wet_5m = _smoothstep_cos(
+        p_ref_5m,
+        float(bcfg["arid_blend_lo_mm_month"]),
+        float(bcfg["arid_blend_hi_mm_month"]),
+      )
+      beyer_data = {
+        "r0": r0,
+        "r1": r1,
+        "c0": c0,
+        "c1": c1,
+        "sub_lat": sub_lat,
+        "sub_lon": sub_lon,
+        "w_spat": w_spat,
+        "years_cal": np.asarray(bf["years_cal"], dtype=np.int32),
+        "lat": b_lat,
+        "lon": b_lon,
+        "T_clim": np.asarray(bf["T_clim"], dtype=np.float32),
+        "P_clim": np.asarray(bf["P_clim"], dtype=np.float32),
+        "T_ref": np.asarray(bf["T_ref"], dtype=np.float32),
+        "p_ref_5m": p_ref_5m,
+        "w_wet_5m": w_wet_5m,
+      }
 
   _WORKER_CTX.update({
+    "beyer": beyer_data,
     "cfg": cfg,
     "paths": paths,
+    "active_keys": tuple(active_keys),
     "shards_dir": Path(shards_dir_str),
     "lat_5m": lat_5m,
     "lon_5m": lon_5m,
@@ -374,9 +556,9 @@ def _init_worker(shards_dir_str: str) -> None:
     "ccsm_idx": {int(y): i for i, y in enumerate(ccsm["years"].tolist())},
     "ccsm_lat": ccsm["lat"],
     "ccsm_lon": ccsm["lon"],
-    "ccsm_t": ccsm["T_clim"],
-    "ccsm_p": ccsm["P_clim"],
-    "ccsm_z": ccsm["Z_clim"],
+    "ccsm_t": ccsm_t_corr,
+    "ccsm_p": ccsm_p_corr,
+    "ccsm_z": ccsm_z_corr,
     "ccsm_t_ref": ccsm["T_ref"],
     "ccsm_p_ref": ccsm["P_ref"],
     "ccsm_z_ref": ccsm["Z_ref"],
@@ -412,7 +594,9 @@ def _process_timestep(args: tuple[int, int]) -> tuple[int, int, float]:
   ant_mask = ctx["ant_mask"]
   p_floor, r_min, r_max = ctx["p_floor"], ctx["r_min"], ctx["r_max"]
 
-  water_mask = np.asarray(ctx["land_nc"].variables["land_area"][ti, :, :], dtype=np.float32) == 0.0
+  land_arr = np.asarray(ctx["land_nc"].variables["land_area"][ti, :, :], dtype=np.float32)
+  water_mask = (land_arr == 0.0)
+  ice_mask = (land_arr < 0.0)
 
   if y < ctx["splice_start"]:
     ci = ctx["ccsm_idx"][y]
@@ -502,6 +686,8 @@ def _process_timestep(args: tuple[int, int]) -> tuple[int, int, float]:
     t_m = ctx["t_base_5m"] + dt_5m
 
   p_m = np.maximum(0.0, ctx["p_base_5m"] * rp_5m)
+  if y < int(ctx["cfg"].get("beyer2020_africa_integration", {}).get("end_year_cutoff", -100000)):
+    t_m, p_m = apply_beyer2020_africa_integration(y, t_m, p_m, ctx)
 
   land_idx = ~water_mask
   n_land = int(land_idx.sum())
@@ -511,35 +697,44 @@ def _process_timestep(args: tuple[int, int]) -> tuple[int, int, float]:
   w_false = np.zeros((1, n_land), dtype=bool)
 
   metrics = compute_seasonal_metrics(t_land, p_land, nh_land)
-  kg_1d = classify_koeppen_geiger(t_land, p_land, metrics, w_false)[0]
-  tr_1d = classify_trewartha(t_land, p_land, metrics, w_false)[0]
-  hl_1d = classify_holdridge(
-    t_land,
-    p_land,
-    metrics["t_cold"],
-    w_false,
-    ctx["c_ids"],
-    ctx["c_log_t"],
-    ctx["c_log_p"],
-    ctx["polar_tbio_c"],
-    ctx["frost_tcold_c"],
-  )[0]
-
-  kg = np.zeros(water_mask.shape, dtype=np.uint8)
-  tr = np.zeros(water_mask.shape, dtype=np.uint8)
-  hl = np.zeros(water_mask.shape, dtype=np.uint8)
-  kg[land_idx] = kg_1d
-  tr[land_idx] = tr_1d
-  hl[land_idx] = hl_1d
-
+  active_keys = ctx["active_keys"]
   rasters_dir = ctx["paths"]["rasters_dir"]
   cfg = ctx["cfg"]
-  for key, arr in (("koeppen_geiger", kg), ("trewartha", tr), ("holdridge_lifezones", hl)):
-    png_path = rasters_dir / f"{cfg[key]['geopng_prefix']}{y}.png"
-    hc.encode_uint32_geopng(png_path, arr.astype(np.uint32))
+  shard_arrays = []
+
+  if "koeppen_geiger" in active_keys:
+    kg = np.zeros(water_mask.shape, dtype=np.uint8)
+    kg[land_idx] = classify_koeppen_geiger(t_land, p_land, metrics, w_false)[0]
+    kg[ice_mask] = 30
+    hc.encode_uint32_geopng(rasters_dir / f"{cfg['koeppen_geiger']['geopng_prefix']}{y}.png", kg.astype(np.uint32))
+    shard_arrays.append(kg)
+
+  if "trewartha" in active_keys:
+    tr = np.zeros(water_mask.shape, dtype=np.uint8)
+    tr[land_idx] = classify_trewartha(t_land, p_land, metrics, w_false)[0]
+    tr[ice_mask] = 17
+    hc.encode_uint32_geopng(rasters_dir / f"{cfg['trewartha']['geopng_prefix']}{y}.png", tr.astype(np.uint32))
+    shard_arrays.append(tr)
+
+  if "holdridge_lifezones" in active_keys:
+    hl = np.zeros(water_mask.shape, dtype=np.uint8)
+    hl[land_idx] = classify_holdridge(
+      t_land,
+      p_land,
+      metrics["t_cold"],
+      w_false,
+      ctx["c_ids"],
+      ctx["c_log_t"],
+      ctx["c_log_p"],
+      ctx["polar_tbio_c"],
+      ctx["frost_tcold_c"],
+    )[0]
+    hl[ice_mask] = 1
+    hc.encode_uint32_geopng(rasters_dir / f"{cfg['holdridge_lifezones']['geopng_prefix']}{y}.png", hl.astype(np.uint32))
+    shard_arrays.append(hl)
 
   shard_path = ctx["shards_dir"] / f"t_{ti:03d}.npy"
-  np.save(shard_path, np.stack([kg, tr, hl], axis=0))
+  np.save(shard_path, np.stack(shard_arrays, axis=0))
   return ti, y, time.time() - t0
 
 
@@ -550,8 +745,9 @@ def open_climate_outputs(
   lat: np.ndarray,
   lon: np.ndarray,
   cell_area: np.ndarray,
+  active_keys: tuple[str, ...],
 ) -> dict:
-  """Opens all 3 CF-1.8 NetCDF-4 datasets for slice-by-slice writing."""
+  """Opens requested CF-1.8 NetCDF-4 datasets for slice-by-slice writing."""
   enc = cfg["encoding"]
   chunk_shape = tuple(int(x) for x in enc["netcdf_chunk_shape"])
   complevel = int(enc["netcdf_compression_level"])
@@ -561,21 +757,23 @@ def open_climate_outputs(
     (
       "koeppen_geiger",
       "Köppen-Geiger climate classification (Peel et al. 2007; Beck et al. 2018, 2023)",
-      "CCSM3 TraCE-21ka (d651050) + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
+      "CCSM3 TraCE-21ka (d651050) + Beyer et al. (2020) Africa Holocene + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
     ),
     (
       "trewartha",
       "Trewartha climate classification (Trewartha & Horn 1980; Patton 1962; Belda et al. 2014)",
-      "CCSM3 TraCE-21ka (d651050) + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
+      "CCSM3 TraCE-21ka (d651050) + Beyer et al. (2020) Africa Holocene + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
     ),
     (
       "holdridge_lifezones",
       "Holdridge Life Zones classification (Holdridge 1947, 1967; Leemans 1990; Lugo et al. 1999)",
-      "CCSM3 TraCE-21ka (d651050) + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
+      "CCSM3 TraCE-21ka (d651050) + Beyer et al. (2020) Africa Holocene + WorldClim 2.1 (5') + CRU TS 4.10 + GLAC-1D + landarea.nc",
     ),
   ]
 
   for key, long_name, source_str in specs:
+    if key not in active_keys:
+      continue
     sub_cfg = cfg[key]
     classes = sub_cfg["classes"]
     flag_values = [int(c["id"]) for c in classes]
@@ -605,6 +803,19 @@ def open_climate_outputs(
 
 
 def main() -> None:
+  all_keys = ("koeppen_geiger", "trewartha", "holdridge_lifezones")
+  parser = argparse.ArgumentParser(description="Classify Hollinger climate indicators.")
+  parser.add_argument("--only", type=str, default="", help="Comma-separated target keys (default: all 3)")
+  args = parser.parse_args()
+  if args.only.strip():
+    req = [k.strip() for k in args.only.split(",") if k.strip()]
+    unknown = [k for k in req if k not in all_keys]
+    if unknown:
+      raise ValueError(f"Unknown --only target(s) {unknown}; valid: {all_keys}")
+    active_keys = tuple(k for k in all_keys if k in req)
+  else:
+    active_keys = all_keys
+
   t_start = time.time()
   paths = hc.resolve_paths("climate")
   cfg = hc.load_json5("climate_config.json5")
@@ -625,26 +836,25 @@ def main() -> None:
     if land_years != years:
       raise ValueError("landarea.nc time axis does not match canonical 218 timesteps")
 
-  print(f"=== Step C: Classifying {len(years)} timesteps with {n_workers} worker processes ===", flush=True)
+  print(f"=== Step C: Classifying {active_keys} ({len(years)} timesteps) with {n_workers} worker processes ===", flush=True)
   done = 0
   with concurrent.futures.ProcessPoolExecutor(
     max_workers=n_workers,
     initializer=_init_worker,
-    initargs=(str(shards_dir),),
+    initargs=(str(shards_dir), active_keys),
   ) as pool:
     for ti, y, dt in pool.map(_process_timestep, list(enumerate(years))):
       done += 1
       if done % 20 == 0 or done == 1 or done == len(years):
         print(f"  [{done:3d}/{len(years)}] year={y:6d} ({dt:.2f}s/step)", flush=True)
 
-  print("=== Step C: Assembling 3 compressed CF-1.8 NetCDF-4 datasets ===", flush=True)
-  handles = open_climate_outputs(cfg, paths, years, lat_5m, lon_5m, cell_area)
+  print(f"=== Step C: Assembling {len(active_keys)} compressed CF-1.8 NetCDF-4 dataset(s) ===", flush=True)
+  handles = open_climate_outputs(cfg, paths, years, lat_5m, lon_5m, cell_area, active_keys)
   try:
     for ti in range(len(years)):
       stack = np.load(shards_dir / f"t_{ti:03d}.npy")
-      handles["koeppen_geiger"]["var"][ti, :, :] = stack[0]
-      handles["trewartha"]["var"][ti, :, :] = stack[1]
-      handles["holdridge_lifezones"]["var"][ti, :, :] = stack[2]
+      for ki, key in enumerate(active_keys):
+        handles[key]["var"][ti, :, :] = stack[ki]
   finally:
     for h_obj in handles.values():
       h_obj["ds"].close()

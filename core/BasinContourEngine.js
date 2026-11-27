@@ -73,6 +73,7 @@ class BasinContourEngine {
    *  @param {boolean} [arg3_options.seed_edge_sea=false] - Seed all sub-cells <= 0 on bbox sea edge / below sea
    *  @param {boolean} [arg3_options.clean_stipples=false] - Morphological closing of tiny interior speckles
    *  @param {boolean} [arg3_options.smooth_substep=false] - Interpolate spatially between 0.5m DEM contours via dual-BFS shoreline distance
+   *  @param {number} [arg3_options.seed_search_radius=20] - Sub-cell search radius around seed coordinate
    *
    * @returns {Array<Array<number>>} [[pixel_idx_5m, water_frac], ...]
    */
@@ -140,12 +141,13 @@ class BasinContourEngine {
     } else {
       let sr = Math.min(h - 1, Math.max(0, Math.floor(((90.0 - seed.lat)/180.0)*this.src_h) - sy0));
       let sc = Math.min(w - 1, Math.max(0, Math.floor(((seed.lon + 180.0)/360.0)*this.src_w) - sx0));
+      let search_rad = (options.seed_search_radius !== undefined) ? options.seed_search_radius : 20;
       let best_z = 32767;
       let best_r = sr;
       let best_c = sc;
 
-      for (let dy = -20; dy <= 20; dy++) {
-        for (let dx = -20; dx <= 20; dx++) {
+      for (let dy = -search_rad; dy <= search_rad; dy++) {
+        for (let dx = -search_rad; dx <= search_rad; dx++) {
           let rr = sr + dy;
           let cc = sc + dx;
           if (rr < 0 || rr >= h || cc < 0 || cc >= w) continue;
@@ -397,15 +399,17 @@ class BasinContourEngine {
    * @param {number} arg1_level_ref_m - Water plane elevation at the tilt reference point (m).
    * @param {number} arg2_gradient_m_per_km - Water plane rise per km along the tilt azimuth.
    * @param {Float32Array} arg3_ice_5m - 4320x2160 glaciated fraction for the target year.
+   * @param {Object} [arg4_ws_excl] - Optional DEM watershed exclude mask { mask, h2, w2, ds }.
    *
    * @returns {Array<Array<number>>} [[pixel_idx_5m, water_frac], ...]
    */
-  floodTiltedProglacial (arg0_spec, arg1_level_ref_m, arg2_gradient_m_per_km, arg3_ice_5m) {
+  floodTiltedProglacial (arg0_spec, arg1_level_ref_m, arg2_gradient_m_per_km, arg3_ice_5m, arg4_ws_excl) {
     //Convert from parameters
     let spec = arg0_spec;
     let level_ref_m = arg1_level_ref_m;
     let gradient = arg2_gradient_m_per_km;
     let ice_5m = arg3_ice_5m;
+    let ws_excl = arg4_ws_excl;
 
     //Declare local instance variables
     let az = (spec.tilt.azimuth_deg*Math.PI)/180.0;
@@ -439,6 +443,11 @@ class BasinContourEngine {
     }
 
     let passable = (arg0_y, arg1_x) => {
+      if (ws_excl) {
+        let w_y = (arg0_y/ws_excl.ds) | 0;
+        let w_x = (arg1_x/ws_excl.ds) | 0;
+        if (ws_excl.mask[w_y*ws_excl.w2 + w_x] === 1) return false;
+      }
       let z_m = bed[(sy0 + arg0_y)*src_w + sx0 + arg1_x]*scale_m;
       if (z_m <= 0.0 || z_m > row_level[arg0_y] + col_slope[arg0_y]*arg1_x) return false;
       let p_idx = (r0 + ((arg0_y/fy) | 0))*4320 + c0 + ((arg1_x/fx) | 0);
@@ -765,9 +774,9 @@ class BasinContourEngine {
       for (let cx = 0; cx < w; cx++) {
         let z = bed[g_row + cx];
         allow[l_row + cx] = (!preserve_hills || z <= max_elev_hm) ? 1 : 0;
-        //Seed ocean-connected modern sea from deep water (z <= -6 -> -3m) or bbox boundary sea cells (z <= 0)
+        //Seed ocean-connected modern sea from deep water (z <= -5m) or bbox boundary sea cells (z < 0)
         let on_edge = (cy === 0 || cy === h - 1 || cx === 0 || cx === w - 1);
-        if ((on_edge && z <= 0) || z <= -10) {
+        if ((on_edge && z < 0) || z <= -10) {
           let li = l_row + cx;
           modern_sea[li] = 1;
           sq[sqt++] = li;
@@ -781,16 +790,16 @@ class BasinContourEngine {
       let cx = cur - cy*w;
       let g_row = (sy0 + cy)*src_w + sx0;
 
-      if (cx > 0 && modern_sea[cur - 1] === 0 && bed[g_row + cx - 1] <= 0) {
+      if (cx > 0 && modern_sea[cur - 1] === 0 && bed[g_row + cx - 1] < 0) {
         modern_sea[cur - 1] = 1; sq[sqt++] = cur - 1;
       }
-      if (cx < w - 1 && modern_sea[cur + 1] === 0 && bed[g_row + cx + 1] <= 0) {
+      if (cx < w - 1 && modern_sea[cur + 1] === 0 && bed[g_row + cx + 1] < 0) {
         modern_sea[cur + 1] = 1; sq[sqt++] = cur + 1;
       }
-      if (cy > 0 && modern_sea[cur - w] === 0 && bed[g_row - src_w + cx] <= 0) {
+      if (cy > 0 && modern_sea[cur - w] === 0 && bed[g_row - src_w + cx] < 0) {
         modern_sea[cur - w] = 1; sq[sqt++] = cur - w;
       }
-      if (cy < h - 1 && modern_sea[cur + w] === 0 && bed[g_row + src_w + cx] <= 0) {
+      if (cy < h - 1 && modern_sea[cur + w] === 0 && bed[g_row + src_w + cx] < 0) {
         modern_sea[cur + w] = 1; sq[sqt++] = cur + w;
       }
     }
@@ -931,6 +940,152 @@ class BasinContourEngine {
       mode: "proportional",
       year_to_level_id: year_to_level_id,
     };
+  }
+
+
+  /**
+   * Computes a Priority-Flood topographic watershed partition on a downsampled DEM grid across spec.bbox
+   * to separate Hudson Bay drainage (label 1) from Great Lakes / St. Lawrence drainage (label 2).
+   *
+   * @param {Object} arg0_spec - Proglacial lake config object with bbox and watershed_exclude.
+   *
+   * @returns {{ mask: Uint8Array, h2: number, w2: number, ds: number }} Exclude mask (1 = south divide).
+   */
+  computeWatershedExcludeMask (arg0_spec) {
+    //Convert from parameters
+    let spec = arg0_spec;
+    let ws = spec.watershed_exclude;
+
+    //Declare local instance variables
+    let bbox = spec.bbox;
+    let bed = this.bed_i16;
+    let ds = ws.downsample_factor || 5;
+    let fx = this.factor_x;
+    let fy = this.factor_y;
+    let r0 = Math.max(0, Math.floor(((90.0 - bbox.lat_max)/180.0)*2160));
+    let r1 = Math.min(2160, Math.ceil(((90.0 - bbox.lat_min)/180.0)*2160));
+    let c0 = Math.max(0, Math.floor(((bbox.lon_min + 180.0)/360.0)*4320));
+    let c1 = Math.min(4320, Math.ceil(((bbox.lon_max + 180.0)/360.0)*4320));
+    let sy0 = r0*fy;
+    let sx0 = c0*fx;
+    let h30 = (r1 - r0)*fy;
+    let w30 = (c1 - c0)*fx;
+    let h2 = Math.floor(h30/ds);
+    let w2 = Math.floor(w30/ds);
+    let z2 = new Float32Array(h2*w2);
+    let lbl = new Uint8Array(h2*w2);
+    let n_pix = ds*ds;
+    let inv_pix = 1.0/n_pix;
+    let scale_m = this.scale_m;
+    let src_w = this.src_w;
+    let sub_deg = 180.0/this.src_h;
+
+    for (let y = 0; y < h2; y++) {
+      let y_off = sy0 + y*ds;
+      for (let x = 0; x < w2; x++) {
+        let x_off = sx0 + x*ds;
+        let sum = 0.0;
+        for (let dy = 0; dy < ds; dy++) {
+          let row_off = (y_off + dy)*src_w + x_off;
+          for (let dx = 0; dx < ds; dx++)
+            sum += bed[row_off + dx];
+        }
+        z2[y*w2 + x] = sum*inv_pix*scale_m;
+      }
+    }
+
+    //Binary min-heap stores [ev, idx, label] in parallel typed arrays
+    let h_ev = new Float32Array(h2*w2 + 4);
+    let h_idx = new Int32Array(h2*w2 + 4);
+    let h_lbl = new Uint8Array(h2*w2 + 4);
+    let h_sz = 0;
+    let pushHeap = (arg0_ev, arg1_idx, arg2_lbl) => {
+      let pos = h_sz++;
+      h_ev[pos] = arg0_ev;
+      h_idx[pos] = arg1_idx;
+      h_lbl[pos] = arg2_lbl;
+      for (; pos > 0; ) {
+        let par = (pos - 1) >> 1;
+        if (h_ev[par] <= h_ev[pos]) break;
+        let tev = h_ev[par]; h_ev[par] = h_ev[pos]; h_ev[pos] = tev;
+        let tid = h_idx[par]; h_idx[par] = h_idx[pos]; h_idx[pos] = tid;
+        let tlb = h_lbl[par]; h_lbl[par] = h_lbl[pos]; h_lbl[pos] = tlb;
+        pos = par;
+      }
+    };
+
+    for (let x = 0; x < w2; x++) {
+      let i_top = x;
+      lbl[i_top] = 1;
+      pushHeap(z2[i_top], i_top, 1);
+      let i_bot = (h2 - 1)*w2 + x;
+      lbl[i_bot] = 2;
+      pushHeap(z2[i_bot], i_bot, 2);
+    }
+
+    for (let y = 1; y < h2 - 1; y++) {
+      let lat = 90.0 - (sy0 + (y + 0.5)*ds)*sub_deg;
+      for (let x = 0; x < w2; x++) {
+        let idx = y*w2 + x;
+        if (lbl[idx] !== 0) continue;
+        let lon = -180.0 + (sx0 + (x + 0.5)*ds)*sub_deg;
+        let z = z2[idx];
+        if (lat < ws.south_seed_lat_max && lon > ws.south_seed_lon_min && z <= ws.south_seed_max_elev_m) {
+          lbl[idx] = 2;
+          pushHeap(z, idx, 2);
+        } else if (lat > ws.north_seed_lat_min && z <= ws.north_seed_max_elev_m) {
+          lbl[idx] = 1;
+          pushHeap(z, idx, 1);
+        }
+      }
+    }
+
+    let d_y = [-1, 1, 0, 0, -1, -1, 1, 1];
+    let d_x = [0, 0, -1, 1, -1, 1, -1, 1];
+
+    for (; h_sz > 0; ) {
+      let ev = h_ev[0];
+      let cur = h_idx[0];
+      let cl = h_lbl[0];
+      h_sz--;
+      if (h_sz > 0) {
+        h_ev[0] = h_ev[h_sz];
+        h_idx[0] = h_idx[h_sz];
+        h_lbl[0] = h_lbl[h_sz];
+        let pos = 0;
+        for (;;) {
+          let lch = pos*2 + 1;
+          if (lch >= h_sz) break;
+          let rch = lch + 1;
+          let sm = (rch < h_sz && h_ev[rch] < h_ev[lch]) ? rch : lch;
+          if (h_ev[pos] <= h_ev[sm]) break;
+          let tev = h_ev[pos]; h_ev[pos] = h_ev[sm]; h_ev[sm] = tev;
+          let tid = h_idx[pos]; h_idx[pos] = h_idx[sm]; h_idx[sm] = tid;
+          let tlb = h_lbl[pos]; h_lbl[pos] = h_lbl[sm]; h_lbl[sm] = tlb;
+          pos = sm;
+        }
+      }
+
+      let cy = (cur/w2) | 0;
+      let cx = cur - cy*w2;
+      for (let k = 0; k < 8; k++) {
+        let ny = cy + d_y[k];
+        let nx = cx + d_x[k];
+        if (ny < 0 || ny >= h2 || nx < 0 || nx >= w2) continue;
+        let ni = ny*w2 + nx;
+        if (lbl[ni] !== 0) continue;
+        lbl[ni] = cl;
+        let ne = z2[ni];
+        pushHeap((ne > ev) ? ne : ev, ni, cl);
+      }
+    }
+
+    let mask = new Uint8Array(h2*w2);
+    for (let i = 0; i < mask.length; i++)
+      if (lbl[i] === 2) mask[i] = 1;
+
+    //Return statement
+    return { mask: mask, h2: h2, w2: w2, ds: ds };
   }
 }
 

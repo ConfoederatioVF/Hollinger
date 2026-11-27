@@ -57,22 +57,85 @@ class D_BuildDynamicOverlays {
   }
 
   /**
+   * Validates GeoJSON Polygon/MultiPolygon coordinate nesting depth and finite coordinates.
+   *
+   * @param {Object} arg0_geometry
+   * @param {string} [arg1_label="geometry"]
+   *
+   * @returns {boolean}
+   */
+  static validateGeoJsonGeometry (arg0_geometry, arg1_label) {
+    //Convert from parameters
+    let geometry = arg0_geometry;
+    let label = arg1_label ? arg1_label : "geometry";
+
+    //Guard clauses
+    if (!geometry || !geometry.coordinates) {
+      console.error(`[D_overlays] Missing geometry/coordinates for ${label}.`);
+      return false;
+    }
+
+    let polys = null;
+    if (geometry.type === "Polygon") {
+      polys = [geometry.coordinates];
+    } else if (geometry.type === "MultiPolygon") {
+      polys = geometry.coordinates;
+    } else {
+      console.error(`[D_overlays] Unsupported geometry type '${geometry.type}' for ${label}.`);
+      return false;
+    }
+
+    if (!Array.isArray(polys) || polys.length === 0) {
+      console.error(`[D_overlays] Empty polygon array for ${label}.`);
+      return false;
+    }
+
+    for (let p = 0; p < polys.length; p++) {
+      let rings = polys[p];
+      if (!Array.isArray(rings) || rings.length === 0) {
+        console.error(`[D_overlays] Invalid rings nesting in ${label} (poly ${p}).`);
+        return false;
+      }
+      for (let r = 0; r < rings.length; r++) {
+        let ring = rings[r];
+        if (!Array.isArray(ring) || ring.length < 4) {
+          console.error(`[D_overlays] Invalid ring vertex count in ${label} (poly ${p}, ring ${r}).`);
+          return false;
+        }
+        for (let k = 0; k < ring.length; k++) {
+          let pt = ring[k];
+          if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) {
+            console.error(`[D_overlays] Invalid coordinate nesting or non-finite point in ${label} (poly ${p}, ring ${r}, pt ${k}).`);
+            return false;
+          }
+        }
+      }
+    }
+
+    //Return statement
+    return true;
+  }
+
+  /**
    * Rasterises a single GeoJSON geometry into compact sparse [pixel_idx, frac] pairs.
    *
    * @param {Object} arg0_geometry
    * @param {Float64Array} arg1_cell_area_by_row
    * @param {number} [arg2_supersample=20]
+   * @param {string} [arg3_label="geometry"]
    *
    * @returns {Array<Array<number>>}
    */
-  static rasteriseGeometrySparse (arg0_geometry, arg1_cell_area_by_row, arg2_supersample) {
+  static rasteriseGeometrySparse (arg0_geometry, arg1_cell_area_by_row, arg2_supersample, arg3_label) {
     //Convert from parameters
     let geometry = arg0_geometry;
     let cell_area_by_row = arg1_cell_area_by_row;
     let supersample = (arg2_supersample !== undefined) ? arg2_supersample : 20;
+    let label = arg3_label ? arg3_label : "geometry";
 
     //Guard clause
-    if (!geometry || !geometry.coordinates) return [];
+    if (!this.validateGeoJsonGeometry(geometry, label))
+      throw new Error(`Invalid GeoJSON geometry for ${label}`);
 
     let max_lat = -90.0;
     let max_lon = -180.0;
@@ -340,7 +403,7 @@ class D_BuildDynamicOverlays {
     let paths = arg1_paths;
 
     //Declare local instance variables
-    let force = process.argv.includes("--force");
+    let force = process.argv.includes("--force") || process.argv.includes("--force-vos");
     let out_path = path.join(paths.intermediate_dir, "nl_vos_epochs.json");
 
     if (!force && fs.existsSync(out_path)) {
@@ -454,6 +517,7 @@ class D_BuildDynamicOverlays {
 
     let epoch_grids = [];
     let domain_union = new Float32Array(local_h*local_w);
+    let haarlemmermeer_frac = null;
     let t0 = Date.now();
 
     for (let i = 0; i < vos.epochs.length; i++) {
@@ -465,6 +529,7 @@ class D_BuildDynamicOverlays {
       }
 
       let gj = JSON.parse(fs.readFileSync(file_path, "utf8"));
+      let hm_feats = [];
       let land_feats = [];
       let nl_feats = [];
       let active_water_set = (ep.year <= early_max_year) ? early_water_set : water_set;
@@ -476,10 +541,44 @@ class D_BuildDynamicOverlays {
         nl_feats.push(feat);
         if (!active_water_set.has(leg))
           land_feats.push(feat);
+
+        //Extract the official RCE 181.3 km2 Haarlemmermeer droogmakerij footprint from vos_1850 so pre-1848 timesteps keep it open water
+        if (ep.year === 1850 && leg === "droogmakerij") {
+          let area_m2 = Number(feat.properties?.shape_area || 0);
+          let geom = feat.geometry;
+          if (area_m2 >= 150e6 && geom && geom.coordinates) {
+            let polys = (geom.type === "Polygon") ? [geom.coordinates] : (geom.type === "MultiPolygon" ? geom.coordinates : []);
+            let sum_x = 0.0, sum_y = 0.0, cnt_pt = 0;
+            for (let p = 0; p < polys.length; p++) {
+              let ring = polys[p][0] || [];
+              for (let k = 0; k < ring.length; k++) {
+                sum_x += ring[k][0];
+                sum_y += ring[k][1];
+                cnt_pt++;
+              }
+            }
+            if (cnt_pt > 0) {
+              let cx = sum_x/cnt_pt;
+              let cy = sum_y/cnt_pt;
+              if (cy >= 52.18 && cy <= 52.42 && cx >= 4.50 && cx <= 4.90)
+                hm_feats.push(feat);
+            }
+          }
+        }
       }
 
       let f_land = rasteriseMask(land_feats);
       let f_dom = rasteriseMask(nl_feats);
+
+      if (ep.year === 1850) {
+        if (hm_feats.length === 0)
+          throw new Error("[D_overlays] Could not find Haarlemmermeer droogmakerij polygon (>=150 km2) in vos_1850.geojson!");
+        haarlemmermeer_frac = rasteriseMask(hm_feats);
+        let hm_cells = 0;
+        for (let k = 0; k < haarlemmermeer_frac.length; k++)
+          if (haarlemmermeer_frac[k] > 0.01) hm_cells++;
+        console.log(`[D_overlays]   Vos NL Haarlemmermeer footprint extracted: ${hm_feats.length} feature(s), ${hm_cells} 5' cells.`);
+      }
 
       for (let k = 0; k < domain_union.length; k++)
         if (f_dom[k] > domain_union[k]) domain_union[k] = f_dom[k];
@@ -497,6 +596,7 @@ class D_BuildDynamicOverlays {
       c1: c1,
       domain_frac: Array.from(domain_union),
       epochs: epoch_grids,
+      haarlemmermeer_frac: haarlemmermeer_frac ? Array.from(haarlemmermeer_frac) : [],
       local_h: local_h,
       local_w: local_w,
       r0: r0,
@@ -545,6 +645,8 @@ class D_BuildDynamicOverlays {
       let b = hcfg.seeded_basins[i];
       let level_cache = new Map();
       let level_table = [];
+      let max_pairs = 0;
+      let use_substep = Boolean(b.smooth_substep);
       let year_to_level_id = {};
 
       for (let yi = 0; yi < years.length; yi++) {
@@ -553,27 +655,36 @@ class D_BuildDynamicOverlays {
         if (b.active_min_year !== undefined && y < b.active_min_year) continue;
 
         let z_raw = BasinContourEngine.evalCurve(b.level_curve_m, y);
-        let z_q = Math.round(z_raw*2.0)/2.0; //Exact 0.5m resolution matching etopo_bed_halfm.i16!
+        let z_q = use_substep ? (Math.round(z_raw*10.0)/10.0) : (Math.round(z_raw*2.0)/2.0);
         let key = z_q.toFixed(1);
 
         if (!level_cache.has(key)) {
           let pairs = engine.floodSeededContour(b.bbox, b.seed, z_q, {
             clean_stipples: Boolean(b.clean_stipples),
+            seed_search_radius: b.seed_search_radius,
+            smooth_substep: use_substep,
           });
+          if (pairs.length > max_pairs) max_pairs = pairs.length;
           level_cache.set(key, level_table.length);
           level_table.push({ pairs: pairs, z_m: z_q });
         }
         year_to_level_id[y] = level_cache.get(key);
       }
 
+      if (max_pairs === 0) {
+        console.error(`[D_overlays] Seeded basin ${b.id} produced 0 flooded cells across all timesteps!`);
+        throw new Error(`Empty seeded basin: ${b.id}`);
+      }
+
       result.seeded[b.id] = {
         bbox: b.bbox,
+        exclude_bbox: b.exclude_bbox || b.bbox,
         exclude_from_static_natlakes: Boolean(b.exclude_from_static_natlakes),
         is_marine_override: Boolean(b.is_marine_override),
         level_table: level_table,
         year_to_level_id: year_to_level_id,
       };
-      console.log(`[D_overlays]   30" Seeded basin ${b.id}: ${level_table.length} unique elevation contours computed.`);
+      console.log(`[D_overlays]   30" Seeded basin ${b.id}: ${level_table.length} unique elevation contours computed (peak ${max_pairs} 5' cells).`);
     }
 
     //2. Holocene prograding alluvial deltas (ocean-connected back-stripping on 30" DEM)
@@ -742,7 +853,11 @@ class D_BuildDynamicOverlays {
       if (skip_nl_pre_1927.has(ev.id)) continue;
       let geom = rec_feat_map[ev.id];
       if (!geom) continue;
-      let pairs = this.rasteriseGeometrySparse(geom, cell_area_by_row, 20);
+      let pairs = this.rasteriseGeometrySparse(geom, cell_area_by_row, 20, `reclamation:${ev.id}`);
+      if (pairs.length === 0) {
+        console.error(`[D_overlays] Reclamation event ${ev.id} rasterised to 0 cells!`);
+        throw new Error(`Empty reclamation rasterisation: ${ev.id}`);
+      }
       rec_entries.push({
         action: ev.action,
         end_year: ev.end_year,
@@ -755,8 +870,18 @@ class D_BuildDynamicOverlays {
     fs.writeFileSync(path.join(paths.intermediate_dir, "reclamation_sparse.json"), JSON.stringify(rec_entries));
     console.log(`[D_overlays] Built reclamation_sparse.json (${rec_entries.length} events).`);
 
-    //2. Remaining curated paleolakes NOT superseded by 30" DEM contour basins (Agassiz, Texcoco, Tulare, Lop Nur, Salton)
-    let superseded_lakes = new Set(["paleolake_mega_chad", "aral_sea_1960_extent", "aral_sea_west_deep", "lake_chad_1960", "lake_urmia_pre_2000"]);
+    //2. Remaining curated paleolakes NOT superseded by 30" DEM contour basins or HydroLAKES exclusions
+    let superseded_lakes = new Set([
+      "paleolake_mega_chad",
+      "aral_sea_1960_extent",
+      "aral_sea_west_deep",
+      "lake_chad_1960",
+      "lake_urmia_pre_2000",
+      "lake_texcoco_valley",
+      "tulare_lake_ca",
+      "lop_nur_basin",
+      "salton_sea_1905",
+    ]);
     let lake_registry = GeoGridUtils.loadConfig("paleolake_registry.json5");
     let lake_geojson = JSON.parse(fs.readFileSync(path.join(paths.curated_dir, "paleolake_polygons.geojson"), "utf8"));
     let min_bed_path = path.join(paths.intermediate_dir, "etopo_min_bed_5m.f32");
@@ -771,7 +896,11 @@ class D_BuildDynamicOverlays {
       if (superseded_lakes.has(lk.id)) continue;
       let geom = lake_feat_map[lk.id];
       if (!geom) continue;
-      let raw_pairs = this.rasteriseGeometrySparse(geom, cell_area_by_row, 20);
+      let raw_pairs = this.rasteriseGeometrySparse(geom, cell_area_by_row, 20, `paleolake:${lk.id}`);
+      if (raw_pairs.length === 0) {
+        console.error(`[D_overlays] Paleolake ${lk.id} rasterised to 0 cells!`);
+        throw new Error(`Empty paleolake rasterisation: ${lk.id}`);
+      }
       let enriched = raw_pairs.map((pair) => ({
         elev: min_bed_5m ? min_bed_5m[pair[0]] : 0.0,
         frac: pair[1],
@@ -1100,7 +1229,8 @@ class D_BuildDynamicOverlays {
     for (let i = 0; i < specs.length; i++) {
       let sp = specs[i];
       let by_year = {};
-      let exclude_idx = this.listCellsInRing(sp.exclude_ring, sp.bbox);
+      let exclude_idx = sp.exclude_ring ? this.listCellsInRing(sp.exclude_ring, sp.bbox) : [];
+      let ws_excl = sp.watershed_exclude ? engine.computeWatershedExcludeMask(sp) : null;
 
       for (let yi = 0; yi < years.length; yi++) {
         let y = years[yi];
@@ -1116,7 +1246,7 @@ class D_BuildDynamicOverlays {
         let block = GeoGridUtils.readFloat32Bin(ice_path);
         for (let k = 0; k < exclude_idx.length; k++)
           block[exclude_idx[k]] = 1.0;
-        by_year[y] = engine.floodTiltedProglacial(sp, level, gradient, block);
+        by_year[y] = engine.floodTiltedProglacial(sp, level, gradient, block, ws_excl);
       }
 
       result[sp.id] = { by_year: by_year };
