@@ -399,6 +399,7 @@ class GeoGridUtils {
     let base_dir = path.resolve(__dirname, "..");
     let common_dir = path.join(base_dir, "common");
     let core_dir = path.join(base_dir, "core");
+    let exports_dir = path.join(base_dir, "exports");
     let indicator_dir = path.join(base_dir, indicator);
     let tests_dir = path.join(base_dir, "tests");
 
@@ -410,15 +411,16 @@ class GeoGridUtils {
       core_dir: core_dir,
       curated_dir: path.join(indicator_dir, "1.raw_data", "curated"),
       diagnostics_dir: path.join(tests_dir, "diagnostics", indicator),
-      exports_dir: path.join(base_dir, "exports"),
+      exports_dir: exports_dir,
       indicator_dir: indicator_dir,
       intermediate_dir: path.join(indicator_dir, "2.intermediates"),
       lib_dir: core_dir,
       nc_path: path.join(indicator_dir, `${indicator}.nc`),
       pipeline_dir: path.join(indicator_dir, "pipeline"),
+      previews_dir: path.join(exports_dir, "previews"),
       rasters_dir: path.join(indicator_dir, "3.rasters"),
       raw_dir: path.join(indicator_dir, "1.raw_data"),
-      renders_dir: path.join(base_dir, "exports", indicator),
+      renders_dir: exports_dir,
       scripts_dir: path.join(indicator_dir, "pipeline"),
       tests_dir: tests_dir,
     };

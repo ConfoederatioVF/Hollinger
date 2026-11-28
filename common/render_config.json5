@@ -2,7 +2,7 @@
   //Utilitarian 4K Equal Earth QBAM Animation Configuration
   //Edit this file freely and run:
   //  node landarea/pipeline/G_render_animation.js --preview-years -10000,-6000,0,1950,2025
-  //to inspect still frames in exports/landarea/previews/ before encoding all frames.
+  //to inspect still frames in exports/previews/ before encoding all frames.
 
   canvas: {
     width: 3840,
@@ -92,6 +92,7 @@
     //Set true to duplicate frames after 1 AD for constant 60 fps instead of 12 026-frame VFR
     cfr_60_duplicate_ad: false,
     output_filename: "landarea_Hollinger_-10000_2025.mp4",
+    preview_prefix: "landarea",
     video_codec: "libx264",
     pixel_format: "yuv420p",
     crf: 18,

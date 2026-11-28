@@ -163,14 +163,14 @@ async function main () {
   let anim = rcfg.animation;
   let cat_root = rcfg.categorical_animations;
   let comp_cfg = anim.compression || { target_size_mb: 19.0, max_size_mb: 20.0, suffix: "_compressed", preset: "slow", tune: "animation" };
-  let land_paths = GeoGridUtils.resolvePaths("landarea");
+  let exports_dir = GeoGridUtils.resolvePaths("landarea").exports_dir;
   let pass_dir = fs.mkdtempSync(path.join(os.tmpdir(), "hollinger_2pass_"));
   let target_map = {
-    landarea: path.join(land_paths.renders_dir, anim.output_filename),
-    trewartha: path.join(GeoGridUtils.resolvePaths(cat_root.trewartha.indicator).renders_dir, cat_root.trewartha.output_filename),
-    koeppen_geiger: path.join(GeoGridUtils.resolvePaths(cat_root.koeppen_geiger.indicator).renders_dir, cat_root.koeppen_geiger.output_filename),
-    holdridge_lifezones: path.join(GeoGridUtils.resolvePaths(cat_root.holdridge_lifezones.indicator).renders_dir, cat_root.holdridge_lifezones.output_filename),
-    anthromes: path.join(GeoGridUtils.resolvePaths(cat_root.anthromes.indicator).renders_dir, cat_root.anthromes.output_filename),
+    anthromes: path.join(exports_dir, cat_root.anthromes.output_filename),
+    holdridge_lifezones: path.join(exports_dir, cat_root.holdridge_lifezones.output_filename),
+    koeppen_geiger: path.join(exports_dir, cat_root.koeppen_geiger.output_filename),
+    landarea: path.join(exports_dir, anim.output_filename),
+    trewartha: path.join(exports_dir, cat_root.trewartha.output_filename),
   };
   let target_arg = process.argv.find((arg0_a) => arg0_a.startsWith("--target="));
   let targets = Object.values(target_map);

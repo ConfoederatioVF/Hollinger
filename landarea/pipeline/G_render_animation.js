@@ -21,7 +21,7 @@ let SpatialTransitionMorph = require("../../core/SpatialTransitionMorph");
  * - Framerate: 60 FPS up to 1 AD (-10000..-1), 30 FPS from 1 AD onwards (0..2025)
  *
  * Fast look-dev iteration:
- *   node scripts/G_render_animation.js --preview-years -10000,-6000,0,1950,2025
+ *   node landarea/pipeline/G_render_animation.js --preview-years -10000,-6000,0,1950,2025
  */
 class G_RenderAnimation {
   /**
@@ -388,7 +388,7 @@ class G_RenderAnimation {
   }
 
   /**
-   * Renders fast 4K PNG preview stills for specified years so styling in config/render_config.json5 can be iterated quickly.
+   * Renders fast 4K PNG preview stills for specified years so styling in common/render_config.json5 can be iterated quickly.
    *
    * @param {Array<number>} arg0_years
    *
@@ -404,7 +404,8 @@ class G_RenderAnimation {
     let cell_area = GeoGridUtils.computeCellAreaByRow(cfg.grid);
     let pal = this.buildPaletteRgb(rcfg);
     let paths = GeoGridUtils.resolvePaths("landarea");
-    let preview_dir = path.join(paths.renders_dir, "previews");
+    let previews_dir = paths.previews_dir;
+    let preview_prefix = rcfg.animation.preview_prefix || "landarea";
     let prefix = cfg.encoding.geopng_prefix;
     let projector = new EqualEarthProjector(rcfg.canvas, cfg.grid);
     let legend = await this.buildLegendOverlay(rcfg, projector.map_top_px);
@@ -413,8 +414,8 @@ class G_RenderAnimation {
     let key_years = GeoGridUtils.getTimestepYears(cfg);
     let morph_scratch = { grid_to_local: new Int32Array(cfg.grid.width*cfg.grid.height).fill(-1) };
 
-    if (!fs.existsSync(preview_dir))
-      fs.mkdirSync(preview_dir, { recursive: true });
+    if (!fs.existsSync(previews_dir))
+      fs.mkdirSync(previews_dir, { recursive: true });
 
     for (let i = 0; i < preview_years.length; i++) {
       let yr = preview_years[i];
@@ -454,7 +455,7 @@ class G_RenderAnimation {
         this.blitRgbaOntoRgb(frame_rgb, rcfg.canvas.width, patch.buf, patch.width, patch.height, rcfg.year_label.x_px, Math.round(projector.map_top_px/2 - patch.height/2));
       }
 
-      let out_png = path.join(preview_dir, `preview_${yr}.png`);
+      let out_png = path.join(previews_dir, `${preview_prefix}_preview_${yr}.png`);
       await sharp(Buffer.from(frame_rgb.buffer, frame_rgb.byteOffset, frame_rgb.byteLength), {
         raw: { channels: 3, height: rcfg.canvas.height, width: rcfg.canvas.width },
       })
@@ -484,10 +485,13 @@ class G_RenderAnimation {
     let rcfg = GeoGridUtils.loadConfig("render_config.json5");
     let anim = rcfg.animation;
     let paths = GeoGridUtils.resolvePaths("landarea");
-    let seg_dir = path.join(paths.renders_dir, "segments");
+    let exports_dir = paths.exports_dir;
+    let seg_dir = path.join(paths.intermediate_dir, "segments_landarea");
     let switch_yr = anim.fps_switch_year;
     let t0 = Date.now();
 
+    if (!fs.existsSync(exports_dir))
+      fs.mkdirSync(exports_dir, { recursive: true });
     if (!fs.existsSync(seg_dir))
       fs.mkdirSync(seg_dir, { recursive: true });
 
@@ -525,40 +529,44 @@ class G_RenderAnimation {
 
     console.log(`[G_render] Launching ${jobs.length} parallel 4K Equal Earth QBAM workers for ${total_planned_frames} frames ...`);
 
-    await Promise.all(jobs.map((job) => new Promise((resolve, reject) => {
-      let w = new Worker(__filename, { workerData: job });
-      w.on("message", resolve);
-      w.on("error", reject);
-      w.on("exit", (code) => {
-        if (code !== 0) reject(new Error(`Worker ${job.id} exited with code ${code}`));
-      });
-    })));
+    let final_mp4 = path.join(exports_dir, anim.output_filename);
 
-    //Concatenate segments losslessly into final MP4
-    let concat_list_path = path.join(seg_dir, "concat.txt");
-    let concat_lines = jobs.map((j) => `file '${j.out_path.replace(/\\/g, "/")}'`);
-    fs.writeFileSync(concat_list_path, concat_lines.join("\n"));
+    try {
+      await Promise.all(jobs.map((job) => new Promise((resolve, reject) => {
+        let w = new Worker(__filename, { workerData: job });
+        w.on("message", resolve);
+        w.on("error", reject);
+        w.on("exit", (code) => {
+          if (code !== 0) reject(new Error(`Worker ${job.id} exited with code ${code}`));
+        });
+      })));
 
-    let final_mp4 = path.join(paths.renders_dir, anim.output_filename);
-    console.log(`[G_render] Concatenating ${jobs.length} segments -> ${final_mp4} ...`);
+      //Concatenate segments losslessly into final MP4
+      let concat_list_path = path.join(seg_dir, "concat.txt");
+      let concat_lines = jobs.map((j) => `file '${j.out_path.replace(/\\/g, "/")}'`);
+      fs.writeFileSync(concat_list_path, concat_lines.join("\n"));
 
-    let concat_proc = spawn(ffmpeg_path, [
-      "-y",
-      "-f", "concat",
-      "-safe", "0",
-      "-i", concat_list_path,
-      "-c", "copy",
-      "-movflags", "+faststart",
-      final_mp4,
-    ], { stdio: "inherit" });
+      console.log(`[G_render] Concatenating ${jobs.length} segments -> ${final_mp4} ...`);
 
-    let code = await new Promise((resolve) => concat_proc.on("close", resolve));
-    if (code !== 0) {
-      console.error(`[G_render] Concat failed with exit code ${code}`);
-      process.exit(code);
+      let concat_proc = spawn(ffmpeg_path, [
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concat_list_path,
+        "-c", "copy",
+        "-movflags", "+faststart",
+        final_mp4,
+      ], { stdio: "inherit" });
+
+      let code = await new Promise((resolve) => concat_proc.on("close", resolve));
+      if (code !== 0) {
+        console.error(`[G_render] Concat failed with exit code ${code}`);
+        process.exitCode = code;
+        return;
+      }
+    } finally {
+      fs.rmSync(seg_dir, { recursive: true, force: true });
     }
-
-    fs.rmSync(seg_dir, { recursive: true, force: true });
 
     //Also generate 5 standard preview PNGs for immediate visual inspection
     await this.renderPreviews([-10000, -6000, 0, 1950, 2025]);

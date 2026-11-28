@@ -22,6 +22,7 @@ def resolve_paths(indicator: str = "landarea") -> dict:
   base_dir = get_base_dir()
   common_dir = base_dir / "common"
   core_dir = base_dir / "core"
+  exports_dir = base_dir / "exports"
   tests_dir = base_dir / "tests"
   ind_dir = base_dir / indicator
   return {
@@ -36,8 +37,9 @@ def resolve_paths(indicator: str = "landarea") -> dict:
     "pipeline_dir": ind_dir / "pipeline",
     "nc_path": ind_dir / f"{indicator}.nc",
     "diagnostics_dir": tests_dir / "diagnostics" / indicator,
-    "exports_dir": base_dir / "exports",
-    "renders_dir": base_dir / "exports" / indicator,
+    "exports_dir": exports_dir,
+    "previews_dir": exports_dir / "previews",
+    "renders_dir": exports_dir,
     "stop_hooks_dir": tests_dir / ".stop_hooks",
   }
 

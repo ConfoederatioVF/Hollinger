@@ -721,7 +721,7 @@ async function renderTargetPreviews (arg0_target_key, arg1_years, arg2_render_cf
     (audit.first_violation ? ` first=${JSON.stringify(audit.first_violation)}` : "")
   );
 
-  let previews_dir = path.join(paths.renders_dir, "previews");
+  let previews_dir = paths.previews_dir;
 
   fs.mkdirSync(previews_dir, { recursive: true });
 
@@ -1033,14 +1033,15 @@ async function encodeTargetVideo (arg0_target_key, arg1_render_cfg) {
   let cat_root = render_cfg.categorical_animations;
   let target_cfg = cat_root[target_key];
   let paths = GeoGridUtils.resolvePaths(target_cfg.indicator);
+  let exports_dir = paths.exports_dir;
   let timesteps = GeoGridUtils.getTimestepYears(GeoGridUtils.loadConfig("model_config.json5"));
-  let seg_dir = path.join(paths.renders_dir, `segments_${target_key}`);
-  let out_mp4 = path.join(paths.renders_dir, target_cfg.output_filename);
+  let seg_dir = path.join(paths.intermediate_dir, `segments_${target_key}`);
+  let out_mp4 = path.join(exports_dir, target_cfg.output_filename);
   let switch_yr = anim.fps_switch_year;
   let jobs = [];
   let t0 = Date.now();
 
-  fs.mkdirSync(paths.renders_dir, { recursive: true });
+  fs.mkdirSync(exports_dir, { recursive: true });
   fs.mkdirSync(seg_dir, { recursive: true });
 
   //6-tier multi-FPS schedule across parallel workers
@@ -1079,57 +1080,59 @@ async function encodeTargetVideo (arg0_target_key, arg1_render_cfg) {
 
   console.log(`[Encode:${target_key}] Starting ${total_planned_frames} frames (${jobs.length} workers) -> ${out_mp4}`);
 
-  await Promise.all(jobs.map((job) => new Promise((resolve, reject) => {
-    let w = new Worker(__filename, {
-      workerData: {
-        target_key: target_key,
-        segment_id: job.segment_id,
-        start_year: job.start_year,
-        end_year: job.end_year,
-        step_years: job.step_years,
-        fps: job.fps,
-        duplicate_frames: job.duplicate_frames,
-        output_mp4: job.output_mp4,
-        render_cfg: render_cfg,
-        timesteps: timesteps,
-      },
+  try {
+    await Promise.all(jobs.map((job) => new Promise((resolve, reject) => {
+      let w = new Worker(__filename, {
+        workerData: {
+          target_key: target_key,
+          segment_id: job.segment_id,
+          start_year: job.start_year,
+          end_year: job.end_year,
+          step_years: job.step_years,
+          fps: job.fps,
+          duplicate_frames: job.duplicate_frames,
+          output_mp4: job.output_mp4,
+          render_cfg: render_cfg,
+          timesteps: timesteps,
+        },
+      });
+
+      w.on("message", (arg0_msg) => {
+        console.log(`[Encode:${target_key}] Segment ${arg0_msg.segment_id} done (${arg0_msg.frames} frames).`);
+      });
+      w.on("error", reject);
+      w.on("exit", (arg0_code) => {
+        if (arg0_code === 0) resolve();
+        else reject(new Error(`Worker ${job.segment_id} exited with code ${arg0_code}`));
+      });
+    })));
+
+    let concat_list_path = path.join(seg_dir, "concat.txt");
+    let concat_lines = jobs.map((j) => `file '${j.output_mp4.replace(/\\/g, "/")}'`);
+
+    fs.writeFileSync(concat_list_path, concat_lines.join("\n"));
+
+    await new Promise((resolve, reject) => {
+      let ff = spawn(ffmpeg_path, [
+        "-y",
+        "-f", "concat",
+        "-safe", "0",
+        "-i", concat_list_path,
+        "-c", "copy",
+        "-movflags", "+faststart",
+        out_mp4,
+      ], { stdio: ["ignore", "ignore", "pipe"] });
+      let err = "";
+
+      ff.stderr.on("data", (arg0_d) => { err += arg0_d.toString(); });
+      ff.on("close", (arg0_code) => {
+        if (arg0_code === 0) resolve();
+        else reject(new Error(`ffmpeg concat failed (${arg0_code}): ${err.slice(-500)}`));
+      });
     });
-
-    w.on("message", (arg0_msg) => {
-      console.log(`[Encode:${target_key}] Segment ${arg0_msg.segment_id} done (${arg0_msg.frames} frames).`);
-    });
-    w.on("error", reject);
-    w.on("exit", (arg0_code) => {
-      if (arg0_code === 0) resolve();
-      else reject(new Error(`Worker ${job.segment_id} exited with code ${arg0_code}`));
-    });
-  })));
-
-  let concat_list_path = path.join(seg_dir, "concat.txt");
-  let concat_lines = jobs.map((j) => `file '${j.output_mp4.replace(/\\/g, "/")}'`);
-
-  fs.writeFileSync(concat_list_path, concat_lines.join("\n"));
-
-  await new Promise((resolve, reject) => {
-    let ff = spawn(ffmpeg_path, [
-      "-y",
-      "-f", "concat",
-      "-safe", "0",
-      "-i", concat_list_path,
-      "-c", "copy",
-      "-movflags", "+faststart",
-      out_mp4,
-    ], { stdio: ["ignore", "ignore", "pipe"] });
-    let err = "";
-
-    ff.stderr.on("data", (arg0_d) => { err += arg0_d.toString(); });
-    ff.on("close", (arg0_code) => {
-      if (arg0_code === 0) resolve();
-      else reject(new Error(`ffmpeg concat failed (${arg0_code}): ${err.slice(-500)}`));
-    });
-  });
-
-  fs.rmSync(seg_dir, { recursive: true, force: true });
+  } finally {
+    fs.rmSync(seg_dir, { recursive: true, force: true });
+  }
 
   let elapsed_s = ((Date.now() - t0)/1000).toFixed(1);
   let size_mb = (fs.statSync(out_mp4).size/(1024*1024)).toFixed(2);
